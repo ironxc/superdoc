@@ -373,10 +373,13 @@ export const Paragraph = OxmlNode.create({
       props: {
         handleDOMEvents: {
           beforeinput: (view, event) => {
+            if (event?.isComposing || view?.composing || event?.inputType === 'insertCompositionText') {
+              return false;
+            }
+
             if (!event || event.inputType !== 'insertText' || !event.data) {
               return false;
             }
-            if (event.isComposing) return false;
 
             const { state } = view;
             const { selection } = state;

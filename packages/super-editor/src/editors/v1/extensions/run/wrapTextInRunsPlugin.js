@@ -3,6 +3,14 @@ import { decodeRPrFromMarks } from '@converter/styles.js';
 import { collectChangedRangesThroughTransactions } from '@utils/rangeUtils.js';
 import { getFormattingStateAtPos } from '@core/helpers/getMarksFromSelection.js';
 
+const isImeTransactionBatch = (transactions) =>
+  transactions.some(
+    (tr) =>
+      tr.getMeta('composition') != null ||
+      tr.getMeta('compositionCommit') === true ||
+      tr.getMeta('inputType') === 'insertCompositionText',
+  );
+
 const preserveStoredMarks = (state, tr) => {
   if (!(tr.selection instanceof TextSelection) || !tr.selection.empty) return;
   if (state.storedMarks === null) return;

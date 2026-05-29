@@ -62,6 +62,7 @@ import { RemoteCursorManager, type RenderDependencies } from './remote-cursors/R
 import { EditorInputManager } from './pointer-events/EditorInputManager.js';
 import { SelectionSyncCoordinator } from './selection/SelectionSyncCoordinator.js';
 import { PresentationInputBridge } from './input/PresentationInputBridge.js';
+import { resolveImeCompositionCommit } from './input/ImeCompositionCommit.js';
 import { calculateExtendedSelection } from './selection/SelectionHelpers.js';
 import { getAtomNodeTypes as getAtomNodeTypesFromSchema } from './utils/SchemaNodeTypes.js';
 import { buildPositionMapFromPmDoc } from './utils/PositionMapFromPm.js';
@@ -532,6 +533,14 @@ export class PresentationEditor extends EventEmitter {
   #storySessionSelectionHandler: ((...args: unknown[]) => void) | null = null;
   #storySessionTransactionHandler: ((...args: unknown[]) => void) | null = null;
   #storySessionEditor: Editor | null = null;
+  #imeCompositionEditor: Editor | null = null;
+  #editorDomListeners: Array<{ target: HTMLElement; event: string; handler: EventListener }> = [];
+  #imeCompositionStartSnapshot: {
+    text: string;
+    from: number;
+    to: number;
+    suffixText: string;
+  } | null = null;
   /**
    * Document-wide history coordinator. Enabled by default and disabled only
    * when callers explicitly set `experimental.unifiedHistory` to `false`.
@@ -4059,6 +4068,7 @@ export class PresentationEditor extends EventEmitter {
 
     this.#editorListeners.forEach(({ event, handler }) => this.#editor?.off(event, handler));
     this.#editorListeners = [];
+    this.#teardownImeCompositionEventBridge();
 
     this.#domIndexObserverManager?.destroy();
     this.#domIndexObserverManager = null;
@@ -4343,6 +4353,146 @@ export class PresentationEditor extends EventEmitter {
     return this.#postPaintPipeline.hasCurrentDecorationRanges(state);
   }
 
+  #isCompositionDraftTransaction(editor: Editor | null | undefined, transaction?: Transaction | null): boolean {
+    if (!editor || !transaction?.docChanged) return false;
+    const compositionMeta = transaction.getMeta?.('composition');
+    if (compositionMeta != null && editor.view?.composing === true) {
+      return true;
+    }
+    return (
+      editor.view?.composing === true &&
+      this.#imeCompositionEditor === editor &&
+      this.#imeCompositionStartSnapshot != null &&
+      transaction.getMeta?.('inputType') === 'insertText'
+    );
+  }
+
+  #getVisibleCaretPosDuringImeComposition(editor: Editor | null | undefined, selection: Selection): number | null {
+    const snapshot = this.#imeCompositionStartSnapshot;
+    if (!editor || !snapshot || this.#imeCompositionEditor !== editor || editor.view?.composing !== true) {
+      return null;
+    }
+    if (!selection.empty || selection.from < snapshot.from) {
+      return null;
+    }
+
+    return snapshot.from;
+  }
+
+  #resolveImeSnapshotReuseDecision(state: EditorState): {
+    reuse: boolean;
+    reason: string;
+    draftText: string;
+    from: number;
+    to: number;
+  } {
+    const snapshot = this.#imeCompositionStartSnapshot;
+    if (!snapshot) {
+      return { reuse: false, reason: 'no-snapshot', draftText: '', from: state.selection.from, to: state.selection.to };
+    }
+
+    const from = snapshot.from;
+    const to = state.selection.from;
+    if (to < from) {
+      return { reuse: false, reason: 'selection-before-snapshot', draftText: '', from, to };
+    }
+
+    const maxDraftLength = 64;
+    if (to - from > maxDraftLength) {
+      return { reuse: false, reason: 'draft-range-too-large', draftText: '', from, to };
+    }
+
+    const draftText = state.doc.textBetween(from, to, '', '');
+    if (/\p{Script=Han}/u.test(draftText)) {
+      return { reuse: false, reason: 'draft-range-has-han', draftText, from, to };
+    }
+
+    return { reuse: true, reason: 'reuse-active-composition', draftText, from, to };
+  }
+
+  #teardownImeCompositionEventBridge(): void {
+    this.#editorDomListeners.forEach(({ target, event, handler }) => target.removeEventListener(event, handler));
+    this.#editorDomListeners = [];
+    this.#imeCompositionEditor = null;
+    this.#imeCompositionStartSnapshot = null;
+  }
+
+  #syncImeCompositionEventBridge(editor: Editor | null = this.getActiveEditor()): void {
+    const nextEditor = editor ?? null;
+    if (nextEditor === this.#imeCompositionEditor) {
+      return;
+    }
+
+    this.#teardownImeCompositionEventBridge();
+    const editorDom = nextEditor?.view?.dom as HTMLElement | undefined;
+    if (!nextEditor || !editorDom) {
+      return;
+    }
+
+    const handleCompositionStart = () => {
+      const state = nextEditor.state;
+      if (state && this.#imeCompositionStartSnapshot) {
+        const reuseDecision = this.#resolveImeSnapshotReuseDecision(state);
+        if (reuseDecision.reuse) {
+          return;
+        }
+
+        this.#imeCompositionStartSnapshot = null;
+      }
+
+      this.#imeCompositionStartSnapshot = state
+        ? {
+            text: state.doc.textContent,
+            from: state.selection.from,
+            to: state.selection.to,
+            suffixText: state.doc.textBetween(
+              state.selection.from,
+              Math.min(state.selection.from + 1, state.doc.content.size),
+              '',
+              '',
+            ),
+          }
+        : null;
+    };
+
+    const handleCompositionEnd = (event: CompositionEvent) => {
+      const state = nextEditor.state;
+      const start = this.#imeCompositionStartSnapshot;
+      if (state && start && event.data) {
+        const commit = resolveImeCompositionCommit({
+          from: start.from,
+          to: state.selection.from,
+          data: event.data,
+          suffixText: start.suffixText,
+          docSize: state.doc.content.size,
+          readText: (from, to) => state.doc.textBetween(from, to, '', ''),
+        });
+        if (commit) {
+          const tr = state.tr.insertText(commit.replacementText, commit.replaceFrom, commit.replaceTo);
+          const committedTextEnd = Math.max(0, Math.min(commit.selectionPos, tr.doc.content.size));
+          tr.setSelection(TextSelection.create(tr.doc, committedTextEnd));
+          tr.setMeta('inputType', 'insertCompositionText');
+          tr.setMeta('compositionCommit', true);
+          nextEditor.dispatch(tr);
+        }
+      }
+
+      this.#imeCompositionStartSnapshot = null;
+      const win = this.#visibleHost.ownerDocument?.defaultView ?? window;
+      win.setTimeout(() => {
+        this.#pendingDocChange = true;
+        this.#selectionSync.onLayoutStart();
+        this.#scheduleRerender();
+      }, 0);
+    };
+
+    editorDom.addEventListener('compositionstart', handleCompositionStart);
+    editorDom.addEventListener('compositionend', handleCompositionEnd);
+    this.#editorDomListeners.push({ target: editorDom, event: 'compositionstart', handler: handleCompositionStart });
+    this.#editorDomListeners.push({ target: editorDom, event: 'compositionend', handler: handleCompositionEnd });
+    this.#imeCompositionEditor = nextEditor;
+  }
+
   /**
    * Schedules a decoration sync on the next animation frame, coalesced so
    * rapid transactions (cursor movement, selection changes) don't cause
@@ -4396,6 +4546,10 @@ export class PresentationEditor extends EventEmitter {
         }
       }
       if (trackedChangesChanged || transaction?.docChanged) {
+        if (this.#isCompositionDraftTransaction(this.#editor, transaction ?? null)) {
+          return;
+        }
+
         this.#pendingDocChange = true;
         // Store the mapping from this transaction for position updates during paint.
         // Only stored for doc changes - other triggers don't have position shifts.
@@ -5119,19 +5273,24 @@ export class PresentationEditor extends EventEmitter {
       },
       onSurfaceTransaction: ({ sourceEditor, surface, headerId, sectionType, transaction, duration }) => {
         const documentTransaction =
-          transaction && typeof transaction === 'object' ? (transaction as { docChanged?: boolean }) : null;
+          transaction && typeof transaction === 'object'
+            ? (transaction as Transaction & { docChanged?: boolean })
+            : null;
         if (documentTransaction?.docChanged && headerId) {
-          this.#invalidateTrackedChangesForStory({
-            kind: 'story',
-            storyType: 'headerFooterPart',
-            refId: headerId,
-          });
-          this.#headerFooterSession?.invalidateLayoutForRefs([headerId]);
-          this.#flowBlockCache.setHasExternalChanges(true);
-          this.#pendingDocChange = true;
-          this.#selectionSync.onLayoutStart();
-          this.#scheduleRerender();
-          this.#emitCommentPositions();
+          const isCompositionDraft = this.#isCompositionDraftTransaction(sourceEditor, documentTransaction);
+          if (!isCompositionDraft) {
+            this.#invalidateTrackedChangesForStory({
+              kind: 'story',
+              storyType: 'headerFooterPart',
+              refId: headerId,
+            });
+            this.#headerFooterSession?.invalidateLayoutForRefs([headerId]);
+            this.#flowBlockCache.setHasExternalChanges(true);
+            this.#pendingDocChange = true;
+            this.#selectionSync.onLayoutStart();
+            this.#scheduleRerender();
+            this.#emitCommentPositions();
+          }
         }
         this.emit('headerFooterTransaction', {
           editor: this.#editor,
@@ -5184,6 +5343,7 @@ export class PresentationEditor extends EventEmitter {
 
   #syncActiveSurfaceUiEventBridge(editor: Editor | null = this.getActiveEditor()): void {
     const nextEditor = editor ?? null;
+    this.#syncImeCompositionEventBridge(nextEditor);
     if (nextEditor === this.#activeSurfaceUiEventEditor) {
       return;
     }
@@ -5229,6 +5389,11 @@ export class PresentationEditor extends EventEmitter {
     };
     const transactionHandler = ({ transaction }: { transaction?: { docChanged?: boolean } }) => {
       if (!transaction?.docChanged) {
+        return;
+      }
+
+      const pmTransaction = transaction as Transaction & { docChanged?: boolean };
+      if (this.#isCompositionDraftTransaction(session.editor, pmTransaction)) {
         return;
       }
 
@@ -7049,7 +7214,8 @@ export class PresentationEditor extends EventEmitter {
     }
 
     if (from === to || isDragDropIndicatorActive) {
-      const caretPos = this.#dragDropIndicatorPos ?? from;
+      const imeCaretPos = this.#getVisibleCaretPosDuringImeComposition(activeEditor, selection);
+      const caretPos = this.#dragDropIndicatorPos ?? imeCaretPos ?? from;
       const caretLayout = this.#computeCaretLayoutRect(caretPos);
       if (!caretLayout) {
         // Keep existing cursor visible rather than clearing it

@@ -2,6 +2,9 @@ import { Plugin, PluginKey, Selection, TextSelection } from 'prosemirror-state';
 import { __endComposition } from 'prosemirror-view';
 import { Extension } from '../Extension.js';
 
+const compositionSnapshots = new WeakMap();
+const pendingCompositionNativeEchoes = new WeakMap();
+
 const appendStoryInputDebugLog = (entry) => {
   const debugGlobal = globalThis;
   if (debugGlobal.__SD_DEBUG_STORY_INPUT__ !== true) {
@@ -112,6 +115,169 @@ const shouldForceEndStaleComposition = (view, event) => {
   return !['insertCompositionText', 'deleteCompositionText'].includes(inputType);
 };
 
+const resolveCompositionSnapshotReuseDecision = (view, snapshot) => {
+  if (!snapshot) {
+    return {
+      reuse: false,
+      reason: 'no-snapshot',
+      draftText: '',
+      from: view.state.selection.from,
+      to: view.state.selection.to,
+    };
+  }
+
+  const from = snapshot.from;
+  const to = view.state.selection.from;
+  if (to < from) {
+    return { reuse: false, reason: 'selection-before-snapshot', draftText: '', from, to };
+  }
+
+  if (to - from > 64) {
+    return { reuse: false, reason: 'draft-range-too-large', draftText: '', from, to };
+  }
+
+  const draftText = view.state.doc.textBetween(from, to, '', '');
+  if (/\p{Script=Han}/u.test(draftText)) {
+    return { reuse: false, reason: 'draft-range-has-han', draftText, from, to };
+  }
+
+  return { reuse: true, reason: 'reuse-active-composition', draftText, from, to };
+};
+
+const resolveDomCompositionRange = (view) => {
+  const domSelection = view?.dom?.ownerDocument?.getSelection?.() ?? null;
+  if (!view?.dom || !domSelection?.anchorNode || !domSelection?.focusNode) return null;
+  if (!view.dom.contains(domSelection.anchorNode) || !view.dom.contains(domSelection.focusNode)) return null;
+  if (domSelection.isCollapsed) return null;
+
+  try {
+    const anchorPos = view.posAtDOM(domSelection.anchorNode, domSelection.anchorOffset, -1);
+    const focusPos = view.posAtDOM(domSelection.focusNode, domSelection.focusOffset, -1);
+    const from = Math.min(anchorPos, focusPos);
+    const to = Math.max(anchorPos, focusPos);
+    if (from >= to) return null;
+    return { from, to, text: domSelection.toString() };
+  } catch {
+    return null;
+  }
+};
+
+const captureCompositionSnapshot = (view) => {
+  const existing = compositionSnapshots.get(view);
+  if (existing) {
+    const reuseDecision = resolveCompositionSnapshotReuseDecision(view, existing);
+    if (reuseDecision.reuse) {
+      return;
+    }
+  }
+
+  const nextSnapshot = {
+    from: view.state.selection.from,
+    to: view.state.selection.to,
+    text: view.state.doc.textContent,
+  };
+  compositionSnapshots.set(view, nextSnapshot);
+};
+
+const handleComposingPlainTextBeforeInput = (view, event) => {
+  const isComposingPlainText =
+    view?.composing === true &&
+    event?.isComposing !== true &&
+    event?.inputType === 'insertText' &&
+    typeof event?.data === 'string' &&
+    event.data.length > 0;
+
+  if (!isComposingPlainText) {
+    return false;
+  }
+
+  const snapshot = compositionSnapshots.get(view);
+  const from = snapshot?.from ?? view.state.selection.from;
+  const to = view.state.selection.from;
+  const draftText = to >= from && to - from <= 64 ? view.state.doc.textBetween(from, to, '', '') : '';
+
+  if (event.data.trim().length === 0) {
+    const replaceFrom = Math.max(0, Math.min(from, view.state.doc.content.size));
+    const replaceTo = Math.max(replaceFrom, Math.min(to, view.state.doc.content.size));
+    event.preventDefault();
+    if (replaceTo > replaceFrom && !/\p{Script=Han}/u.test(draftText)) {
+      const tr = view.state.tr.delete(replaceFrom, replaceTo);
+      tr.setMeta('inputType', 'deleteCompositionText');
+      tr.setMeta('compositionAbort', true);
+      view.dispatch(tr);
+    }
+    compositionSnapshots.delete(view);
+    __endComposition(view);
+    return true;
+  }
+
+  const replaceFrom = Math.max(0, Math.min(from, view.state.doc.content.size));
+  const replaceTo = Math.max(replaceFrom, Math.min(to, view.state.doc.content.size));
+  const tr = view.state.tr.insertText(event.data, replaceFrom, replaceTo);
+  tr.setMeta('inputType', 'insertCompositionText');
+  tr.setMeta('compositionCommit', true);
+  view.dispatch(tr);
+  event.preventDefault();
+  compositionSnapshots.delete(view);
+  return true;
+};
+
+const suppressCompositionPreviewTextBeforeInput = (view, event) => {
+  const isCompositionPreviewText =
+    view?.composing === true &&
+    event?.isComposing === true &&
+    event?.inputType === 'insertCompositionText' &&
+    typeof event?.data === 'string' &&
+    /\p{Script=Han}/u.test(event.data);
+
+  if (!isCompositionPreviewText) {
+    return false;
+  }
+
+  if (event.cancelable === false) {
+    return false;
+  }
+
+  const snapshot = compositionSnapshots.get(view);
+  const from = snapshot?.from ?? view.state.selection.from;
+  const domRange = resolveDomCompositionRange(view);
+  const to = domRange?.from === from ? domRange.to : view.state.selection.from;
+  pendingCompositionNativeEchoes.set(view, {
+    data: event.data,
+    from: to,
+    createdAt: Date.now(),
+  });
+  event.preventDefault();
+  return true;
+};
+
+const clearPendingCompositionNativeEcho = (view, event) => {
+  const pending = pendingCompositionNativeEchoes.get(view);
+  const isMatchingEcho =
+    pending &&
+    event?.inputType === 'insertCompositionText' &&
+    event?.data === pending.data &&
+    Date.now() - pending.createdAt < 1000;
+
+  if (!isMatchingEcho) {
+    return false;
+  }
+
+  pendingCompositionNativeEchoes.delete(view);
+  const from = Math.max(0, Math.min(pending.from ?? view.state.selection.from, view.state.doc.content.size));
+  const to = Math.max(from, Math.min(from + pending.data.length, view.state.doc.content.size));
+  const echoedText = to >= from ? view.state.doc.textBetween(from, to, '', '') : '';
+  if (echoedText !== pending.data) {
+    return false;
+  }
+
+  const tr = view.state.tr.delete(from, to);
+  tr.setMeta('inputType', 'deleteCompositionText');
+  tr.setMeta('compositionEchoCleanup', true);
+  view.dispatch(tr);
+  return true;
+};
+
 const NAVIGATION_KEYS = new Set([
   'ArrowLeft',
   'ArrowRight',
@@ -172,6 +338,14 @@ export const Editable = Extension.create({
               return true;
             }
 
+            if (suppressCompositionPreviewTextBeforeInput(view, event)) {
+              return true;
+            }
+
+            if (handleComposingPlainTextBeforeInput(view, event)) {
+              return true;
+            }
+
             if (shouldForceEndStaleComposition(view, event)) {
               __endComposition(view);
             }
@@ -186,12 +360,22 @@ export const Editable = Extension.create({
             return false;
           },
           input: (view, event) => {
+            clearPendingCompositionNativeEcho(view, event);
             recordStoryInputDebug(view, event, editor, 'dom:input');
             return false;
           },
-          compositionstart: (view, event) => blockWhenNotEditable(view, event),
+          compositionstart: (view, event) => {
+            if (editor.options.editable) {
+              captureCompositionSnapshot(view);
+            }
+            return blockWhenNotEditable(view, event);
+          },
           compositionupdate: (view, event) => blockWhenNotEditable(view, event),
-          compositionend: (view, event) => blockWhenNotEditable(view, event),
+          compositionend: (view, event) => {
+            compositionSnapshots.delete(view);
+            pendingCompositionNativeEchoes.delete(view);
+            return blockWhenNotEditable(view, event);
+          },
           mousedown: (_view, event) => {
             if (isFullyBlocked()) {
               event.preventDefault();

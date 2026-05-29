@@ -120,6 +120,20 @@ const COMPANION_INLINE_KEYS = {
   italicCs: 'italic',
 };
 
+const RECALC_AFTER_COMPOSITION_META = 'sdRunPropertiesRecalcAfterComposition';
+
+const isImeTransactionBatch = (transactions) =>
+  transactions.some(
+    (tr) =>
+      tr.getMeta('composition') != null ||
+      tr.getMeta('compositionCommit') === true ||
+      tr.getMeta('inputType') === 'insertCompositionText' ||
+      tr.getMeta('inputType') === 'deleteCompositionText',
+  );
+
+const isRunPropertiesCompositionRecalcBatch = (transactions) =>
+  transactions.some((tr) => tr.getMeta(RECALC_AFTER_COMPOSITION_META) === true);
+
 /**
  * ProseMirror plugin that recalculates inline `runProperties` for changed runs,
  * keeping run attributes aligned with decoded mark styles and resolved paragraph styles.
@@ -127,8 +141,34 @@ const COMPANION_INLINE_KEYS = {
  * @param {object} editor Editor instance containing schema, converter data, and paragraph helpers.
  * @returns {Plugin} Plugin that updates run node attributes when changed runs are re-evaluated.
  */
-export const calculateInlineRunPropertiesPlugin = (editor) =>
-  new Plugin({
+export const calculateInlineRunPropertiesPlugin = (editor) => {
+  let view = null;
+  let pendingCompositionRanges = [];
+
+  const flushAfterComposition = () => {
+    if (!view || !pendingCompositionRanges.length) return;
+    const tr = view.state.tr.setMeta(RECALC_AFTER_COMPOSITION_META, true);
+    view.dispatch(tr);
+  };
+
+  const onCompositionEnd = () => {
+    if (typeof globalThis === 'undefined') return;
+    globalThis.queueMicrotask(flushAfterComposition);
+  };
+
+  return new Plugin({
+    view(editorView) {
+      view = editorView;
+      editorView.dom.addEventListener('compositionend', onCompositionEnd);
+      return {
+        destroy() {
+          editorView.dom.removeEventListener('compositionend', onCompositionEnd);
+          if (view === editorView) view = null;
+          pendingCompositionRanges = [];
+        },
+      };
+    },
+
     /**
      * Recompute inline run properties and split runs when adjacent text carries different inline overrides.
      *
@@ -139,10 +179,19 @@ export const calculateInlineRunPropertiesPlugin = (editor) =>
      */
     appendTransaction(transactions, _oldState, newState) {
       const tr = newState.tr;
-      if (!transactions.some((t) => t.docChanged)) return null;
+      const forceCompositionRecalc = isRunPropertiesCompositionRecalcBatch(transactions);
+      if (!forceCompositionRecalc && !transactions.some((t) => t.docChanged)) return null;
 
       const runType = newState.schema.nodes.run;
       if (!runType) return null;
+
+      const isImeBatch = isImeTransactionBatch(transactions);
+      if (isImeBatch && !forceCompositionRecalc) {
+        pendingCompositionRanges = collectChangedRangesThroughTransactions(transactions, newState.doc.content.size, {
+          extraRanges: pendingCompositionRanges,
+        });
+        return null;
+      }
 
       // Collect keys the user (or accept/reject) explicitly removed in this batch so the
       // SD-2517 lost-keys preservation below doesn't re-apply their stale run.runProperties.
@@ -178,8 +227,15 @@ export const calculateInlineRunPropertiesPlugin = (editor) =>
         });
       });
 
-      // Find all runs affected by changes, regardless of step type
-      const changedRanges = collectChangedRangesThroughTransactions(transactions, newState.doc.content.size);
+      // Find all runs affected by changes, regardless of step type.
+      // During IME composition we defer this work until compositionend so we do
+      // not rewrite run node attrs while the browser owns the composition DOM.
+      const changedRanges = forceCompositionRecalc
+        ? pendingCompositionRanges
+        : collectChangedRangesThroughTransactions(transactions, newState.doc.content.size);
+      if (forceCompositionRecalc) {
+        pendingCompositionRanges = [];
+      }
 
       const runPositions = new Set();
       changedRanges.forEach(({ from, to }) => {
@@ -377,6 +433,7 @@ export const calculateInlineRunPropertiesPlugin = (editor) =>
       return tr.docChanged ? tr : null;
     },
   });
+};
 
 /**
  * Find paragraph and table context for a resolved position.
