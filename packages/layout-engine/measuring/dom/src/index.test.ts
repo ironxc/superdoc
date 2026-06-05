@@ -1471,6 +1471,32 @@ describe('measureBlock', () => {
       expect(totalChars).toBe('Hi Supercalifragilisticexpialidocious'.length);
     });
 
+    it('uses remaining line width for a long run after a short prefix run', async () => {
+      const block: FlowBlock = {
+        kind: 'paragraph',
+        id: 'mid-word-test-prefix-run',
+        runs: [
+          {
+            text: '5.',
+            fontFamily: 'Arial',
+            fontSize: 16,
+          },
+          {
+            text: '企业应当确保在线填报确认或以默示方式确认的诉讼文书送达地址真实、准确，能够及时有效接收诉讼文书。',
+            fontFamily: 'Arial',
+            fontSize: 16,
+          },
+        ],
+        attrs: {},
+      };
+
+      const measure = expectParagraphMeasure(await measureBlock(block, 100));
+
+      expect(measure.lines.length).toBeGreaterThan(1);
+      expect(extractLineText(block, measure.lines[0])).not.toBe('5.');
+      expect(extractLineText(block, measure.lines[0]).startsWith('5.')).toBe(true);
+    });
+
     it('handles words that fit exactly without unnecessary breaking', async () => {
       const block: FlowBlock = {
         kind: 'paragraph',
