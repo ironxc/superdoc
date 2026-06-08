@@ -35,6 +35,12 @@ export const Run = OxmlNode.create({
         rendered: false,
         keepOnSplit: true,
       },
+      /** Direct run properties from the source w:rPr. Export uses this to preserve original OOXML slots. */
+      runPropertiesSource: {
+        default: null,
+        rendered: false,
+        keepOnSplit: true,
+      },
       /** Keys of runProperties that were in the run's w:rPr (or set by user). Export outputs only these to avoid duplicating style-inherited props in styles.xml. */
       runPropertiesInlineKeys: {
         default: null,

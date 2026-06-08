@@ -556,7 +556,7 @@ const getLineHeightValueString = (lineHeight, defaultUnit, lineRule = '', isObje
 };
 
 const deobfuscateFont = (arrayBuffer, guidHex) => {
-  const dta = new Uint8Array(arrayBuffer);
+  const dta = new Uint8Array(arrayBuffer).slice();
 
   const guidStr = guidHex.replace(/[-{}]/g, '');
   if (guidStr.length !== 32) {

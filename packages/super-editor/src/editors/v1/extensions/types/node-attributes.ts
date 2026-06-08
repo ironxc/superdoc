@@ -578,12 +578,26 @@ export interface RunProperties {
     cs?: string;
     hint?: string;
   };
+  fontFamily?: {
+    ascii?: string;
+    hAnsi?: string;
+    eastAsia?: string;
+    cs?: string;
+    val?: string;
+    hint?: string;
+    asciiTheme?: string;
+    hAnsiTheme?: string;
+    eastAsiaTheme?: string;
+    cstheme?: string;
+  };
 }
 
 /** Run node attributes */
 export interface RunAttrs extends OxmlNodeAttributes {
   /** Run properties from OOXML */
   runProperties: RunProperties | null;
+  /** Direct run properties from the source w:rPr, used to preserve OOXML font slots on export */
+  runPropertiesSource?: RunProperties | null;
   /** Run properties revision save ID */
   rsidRPr?: string | null;
   /** Deletion revision save ID */

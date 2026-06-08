@@ -98,6 +98,33 @@ describe('w:r r-translator (node)', () => {
     expect(textStyleMark.attrs).toMatchObject({ fontFamily: 'Arial, sans-serif', fontSize: '16pt' });
   });
 
+  it('stores source run properties separately from resolved run properties', () => {
+    const styledRun = {
+      name: 'w:r',
+      elements: [
+        {
+          name: 'w:rPr',
+          elements: [{ name: 'w:rFonts', attributes: { 'w:ascii': '宋体', 'w:hAnsi': '宋体' } }],
+        },
+        { name: 'w:t', elements: [{ type: 'text', text: '公司' }] },
+      ],
+    };
+
+    const params = {
+      nodes: [styledRun],
+      nodeListHandler: {
+        handler: vi.fn(() => [{ type: 'text', text: '公司', marks: [] }]),
+      },
+      docx: {},
+    };
+
+    const node = translator.encode(params);
+
+    expect(node.attrs.runPropertiesSource).toMatchObject({
+      fontFamily: { ascii: '宋体', hAnsi: '宋体' },
+    });
+  });
+
   it('returns a run node containing multiple items such as tabs', () => {
     const run = {
       name: 'w:r',
@@ -556,6 +583,27 @@ describe('w:r r-translator decode (export only inline run properties)', () => {
     expect(rPr).toBeDefined();
     expect((rPr.elements ?? []).map((e) => e.name)).toContain('w:color');
     expect((rPr.elements ?? []).map((e) => e.name)).toContain('w:b');
+  });
+
+  it('exports source font slots instead of resolved font slots when available', () => {
+    const params = runWithContent({
+      runProperties: {
+        fontFamily: { ascii: '宋体', hAnsi: '宋体', eastAsia: '等线', cs: '等线' },
+      },
+      runPropertiesSource: {
+        fontFamily: { ascii: '宋体', hAnsi: '宋体' },
+      },
+      runPropertiesInlineKeys: ['fontFamily'],
+      runPropertiesStyleKeys: [],
+    });
+
+    const result = translator.decode(params);
+    const rPr = result?.elements?.find((el) => el?.name === 'w:rPr');
+    const rFonts = rPr?.elements?.find((el) => el?.name === 'w:rFonts');
+
+    expect(rFonts?.attributes).toMatchObject({ 'w:ascii': '宋体', 'w:hAnsi': '宋体' });
+    expect(rFonts?.attributes?.['w:eastAsia']).toBeUndefined();
+    expect(rFonts?.attributes?.['w:cs']).toBeUndefined();
   });
 
   it('does not export rtl when it is style-only and not an inline override', () => {

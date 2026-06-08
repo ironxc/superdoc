@@ -113,6 +113,13 @@ function marksMatchExistingFontFamily(markFromMarks, existingFontFamily, encode,
   return markFromMarks.attrs.fontFamily === markFromExisting.attrs.fontFamily;
 }
 
+const preserveSourceRunProperties = (sourceRunProperties, preserveAll) => {
+  if (!sourceRunProperties || typeof sourceRunProperties !== 'object') return null;
+  if (preserveAll) return sourceRunProperties;
+  if (sourceRunProperties.fontFamily) return { fontFamily: sourceRunProperties.fontFamily };
+  return null;
+};
+
 const RUN_PROPERTY_PRESERVE_META_KEY = 'sdPreserveRunPropertiesKeys';
 const COMPANION_INLINE_KEYS = {
   fontSizeCs: 'fontSize',
@@ -395,12 +402,18 @@ export const calculateInlineRunPropertiesPlugin = (editor) => {
             runProperties,
             segments[0],
           );
+          const shouldPreserveSourceProperties =
+            JSON.stringify(runProperties) === JSON.stringify(runNode.attrs?.runProperties);
           tr.setNodeMarkup(
             mappedPos,
             runNode.type,
             {
               ...runNode.attrs,
               runProperties,
+              runPropertiesSource: preserveSourceRunProperties(
+                runNode.attrs?.runPropertiesSource,
+                shouldPreserveSourceProperties,
+              ),
               runPropertiesInlineKeys: newInlineKeys,
               runPropertiesOverrideKeys: newOverrideKeys,
             },
@@ -410,10 +423,16 @@ export const calculateInlineRunPropertiesPlugin = (editor) => {
           const newRuns = segments.map((segment) => {
             const props = segment.inlineProps ?? null;
             const { inlineKeys: segInlineKeys, overrideKeys: segOverrideKeys } = computeSegmentKeys(props, segment);
+            const shouldPreserveSourceProperties =
+              JSON.stringify(props) === JSON.stringify(runNode.attrs?.runProperties);
             return runType.create(
               {
                 ...(runNode.attrs ?? {}),
                 runProperties: props,
+                runPropertiesSource: preserveSourceRunProperties(
+                  runNode.attrs?.runPropertiesSource,
+                  shouldPreserveSourceProperties,
+                ),
                 runPropertiesInlineKeys: segInlineKeys,
                 runPropertiesOverrideKeys: segOverrideKeys,
               },

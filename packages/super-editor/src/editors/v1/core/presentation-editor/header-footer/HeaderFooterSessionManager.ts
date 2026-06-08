@@ -1478,7 +1478,7 @@ export class HeaderFooterSessionManager {
     this.#hoverOverlay.style.width = `${region.width}px`;
     this.#hoverOverlay.style.height = `${region.height}px`;
 
-    const tooltipText = `Double-click to edit ${region.kind === 'header' ? 'header' : 'footer'}`;
+    const tooltipText = region.kind === 'header' ? '双击编辑页眉' : '双击编辑页脚';
     this.#hoverTooltip.textContent = tooltipText;
     this.#hoverTooltip.style.display = 'block';
     this.#hoverTooltip.style.left = `${coords.x}px`;

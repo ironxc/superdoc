@@ -10,6 +10,7 @@ import {
   dataUriToArrayBuffer,
   detectImageType,
   eighthPointsToPixels,
+  deobfuscateFont,
 } from './helpers.js';
 
 describe('polygonToObj', () => {
@@ -558,5 +559,17 @@ describe('eighthPointsToPixels', () => {
       expect(eighthPointsToPixels(0, { clamp: true })).toBe(0);
       expect(eighthPointsToPixels(-5, { clamp: true })).toBe(0);
     });
+  });
+});
+
+describe('deobfuscateFont', () => {
+  it('does not mutate the source odttf buffer', () => {
+    const source = new Uint8Array(40).map((_, index) => index);
+    const before = source.slice();
+    const result = new Uint8Array(deobfuscateFont(source.buffer, '00112233445566778899AABBCCDDEEFF'));
+
+    expect(source).toEqual(before);
+    expect(result.slice(0, 32)).not.toEqual(before.slice(0, 32));
+    expect(result.slice(32)).toEqual(before.slice(32));
   });
 });

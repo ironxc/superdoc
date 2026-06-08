@@ -135,6 +135,7 @@ const createRunNodeWithContent = (
   inlineKeysFromCombine,
   runPropertiesStyleKeys = null,
   runPropertiesOverrideKeys = null,
+  sourceRunProperties = null,
 ) => {
   const node = {
     type: SD_KEY_NAME,
@@ -142,6 +143,7 @@ const createRunNodeWithContent = (
     attrs: {
       ...encodedAttrs,
       runProperties: resolvedRunProperties,
+      runPropertiesSource: sourceRunProperties && Object.keys(sourceRunProperties).length ? sourceRunProperties : null,
       runPropertiesInlineKeys: inlineKeysFromCombine,
       runPropertiesStyleKeys: runPropertiesStyleKeys?.length ? runPropertiesStyleKeys : null,
       runPropertiesOverrideKeys: runPropertiesOverrideKeys?.length ? runPropertiesOverrideKeys : null,
@@ -274,6 +276,7 @@ const encode = (params, encodedAttrs = {}) => {
       runPropertiesInlineKeysFromCombine,
       runPropertiesStyleKeys,
       runPropertiesOverrideKeys,
+      encodedRunProperties,
     );
     return defaultNode;
   }
@@ -295,6 +298,7 @@ const encode = (params, encodedAttrs = {}) => {
       runPropertiesInlineKeysFromCombine,
       runPropertiesStyleKeys,
       runPropertiesOverrideKeys,
+      encodedRunProperties,
     );
     if (chunkNode) splitRuns.push(chunkNode);
     currentChunk = [];
@@ -311,6 +315,7 @@ const encode = (params, encodedAttrs = {}) => {
         runPropertiesInlineKeysFromCombine,
         runPropertiesStyleKeys,
         runPropertiesOverrideKeys,
+        encodedRunProperties,
       );
       if (breakNode) splitRuns.push(breakNode);
     } else {
@@ -342,6 +347,7 @@ const decode = (params, decodedAttrs = {}) => {
 
   const runAttrs = runNodeForExport.attrs || {};
   const rawRunProperties = runAttrs.runProperties || {};
+  const sourceRunProperties = runAttrs.runPropertiesSource || null;
   // Backward compatibility: older payloads used iCs instead of italicCs for w:iCs.
   // Normalize to a local copy to avoid mutating node attrs during export.
   const runProperties =
@@ -371,9 +377,13 @@ const decode = (params, decodedAttrs = {}) => {
       (Array.isArray(overrideKeys) && overrideKeys.includes(key)));
 
   const exportKeys = candidateKeys.filter(shouldExport);
+  const getRunPropertyForExport = (key) =>
+    sourceRunProperties && Object.prototype.hasOwnProperty.call(sourceRunProperties, key)
+      ? sourceRunProperties[key]
+      : runProperties[key];
 
   const runPropertiesToExport =
-    exportKeys.length > 0 ? Object.fromEntries(exportKeys.map((k) => [k, runProperties[k]])) : {};
+    exportKeys.length > 0 ? Object.fromEntries(exportKeys.map((k) => [k, getRunPropertyForExport(k)])) : {};
   if (hasComplexScriptText(runNodeForExport)) {
     if ('bold' in runPropertiesToExport && !('boldCs' in runPropertiesToExport)) {
       runPropertiesToExport.boldCs = runPropertiesToExport.bold;
