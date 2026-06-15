@@ -161,6 +161,8 @@ const TWIPS_PER_PX = TWIPS_PER_INCH / PX_PER_INCH; // 15 twips per pixel
 const _PX_PER_PT = 96 / 72; // Reserved for future pt↔px conversions
 const twipsToPx = (twips: number): number => twips / TWIPS_PER_PX;
 const pxToTwips = (px: number): number => Math.round(px * TWIPS_PER_PX);
+const containsCjkBreakableText = (text: string): boolean =>
+  /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u.test(text);
 
 // Canonical implementation moved to @superdoc/contracts; re-imported for local use and re-exported.
 export { getCellSpacingPx } from '@superdoc/contracts';
@@ -2258,13 +2260,21 @@ async function measureParagraphBlock(block: ParagraphBlock, maxWidth: number): P
           ? currentLine.maxWidth
           : getEffectiveWidth(lines.length === 0 ? initialAvailableWidth : contentWidth);
 
-        // Character-level word breaking: if a single word exceeds maxWidth, break it into chunks
-        // This handles narrow table cells where long words would otherwise overflow and be clipped
+        const cjkWordShouldWrapWithinCurrentLine =
+          Boolean(currentLine && currentLine.width > 0) &&
+          containsCjkBreakableText(word) &&
+          currentLine!.width + boundarySpacing + wordOnlyWidth > currentLine!.maxWidth - WIDTH_FUDGE_PX;
+        const wordExceedsLineWidth = wordOnlyWidth > effectiveMaxWidth + WIDTH_FUDGE_PX;
+
+        // Character-level word breaking:
+        // - Long unbreakable words that exceed a full line are split to avoid clipping.
+        // - CJK text may also split when it cannot fit the remaining width, matching Word's
+        //   character wrapping instead of moving the whole run to the next line like English.
         // Note: We use effectiveMaxWidth without WIDTH_FUDGE_PX here because:
         // - WIDTH_FUDGE_PX is meant to give leeway for fitting text that's very close
         // - We only want to break mid-word when the word truly exceeds available width
         // - Breaking words that exactly fit would cause unnecessary fragmentation
-        if (wordOnlyWidth > effectiveMaxWidth + WIDTH_FUDGE_PX && word.length > 1) {
+        if ((wordExceedsLineWidth || cjkWordShouldWrapWithinCurrentLine) && word.length > 1) {
           const lineMaxWidth = getEffectiveWidth(lines.length === 0 ? initialAvailableWidth : contentWidth);
           const hasExistingTextLine =
             currentLine && currentLine.width > 0 && currentLine.segments && currentLine.segments.length > 0;
@@ -2298,10 +2308,28 @@ async function measureParagraphBlock(block: ParagraphBlock, maxWidth: number): P
           // Prefer consuming the remaining width on the current line before spilling
           // the rest of a long unbreakable run onto following lines. This avoids
           // leaving short prefix runs like "5." stranded on their own line.
-          const chunkWidth = canSeedFirstChunkIntoCurrentLine
-            ? Math.max(remainingWidthOnCurrentLine, lineMaxWidth * 0.25)
+          const firstChunkWidth = canSeedFirstChunkIntoCurrentLine
+            ? wordExceedsLineWidth
+              ? Math.max(remainingWidthOnCurrentLine, lineMaxWidth * 0.25)
+              : remainingWidthOnCurrentLine
             : lineMaxWidth;
-          const chunks = breakWordIntoChunks(word, chunkWidth, font, ctx, run, wordStartChar);
+          const spillLineMaxWidth = canSeedFirstChunkIntoCurrentLine ? getEffectiveWidth(contentWidth) : lineMaxWidth;
+          const firstLineChunks = breakWordIntoChunks(word, firstChunkWidth, font, ctx, run, wordStartChar);
+          const firstChunk = firstLineChunks[0];
+          const chunks =
+            canSeedFirstChunkIntoCurrentLine && firstChunk && firstChunk.text.length < word.length
+              ? [
+                  firstChunk,
+                  ...breakWordIntoChunks(
+                    word.slice(firstChunk.text.length),
+                    spillLineMaxWidth,
+                    font,
+                    ctx,
+                    run,
+                    wordStartChar + firstChunk.text.length,
+                  ),
+                ]
+              : firstLineChunks;
 
           // Process all chunks except the last one as complete lines
           let chunkCharOffset = wordStartChar;

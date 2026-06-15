@@ -1497,6 +1497,72 @@ describe('measureBlock', () => {
       expect(extractLineText(block, measure.lines[0]).startsWith('5.')).toBe(true);
     });
 
+    it('uses full line width after seeding a long CJK run into the first line', async () => {
+      const block: FlowBlock = {
+        kind: 'paragraph',
+        id: 'mid-word-test-cjk-prefix-run',
+        runs: [
+          {
+            text: '第三条 公司经营范围：',
+            fontFamily: 'Arial',
+            fontSize: 16,
+          },
+          {
+            text: '   ',
+            fontFamily: 'Arial',
+            fontSize: 16,
+            underline: { style: 'single' },
+          },
+          {
+            text: '一般项目：技术服务、技术开发、技术咨询、技术交流、技术转让、技术推广；数字技术服务；大数据服务；信息系统集成服务；数据处理和存储支持服务；软件开发；人工智能应用软件开发；人工智能理论与算法软件开发；人工智能基础软件开发',
+            fontFamily: 'Arial',
+            fontSize: 16,
+            underline: { style: 'single' },
+          },
+        ],
+        attrs: { indent: { firstLine: 32 } },
+      };
+
+      const measure = expectParagraphMeasure(await measureBlock(block, 553.7333333333));
+      const lineTexts = measure.lines.map((line) => extractLineText(block, line));
+
+      expect(measure.lines.length).toBeGreaterThan(2);
+      expect(measure.lines[1].maxWidth).toBeGreaterThan(measure.lines[0].maxWidth);
+      expect(lineTexts.some((line) => line.endsWith('大数据服'))).toBe(false);
+    });
+
+    it('wraps CJK text within the next run instead of moving the whole run to the next line', async () => {
+      const block: FlowBlock = {
+        kind: 'paragraph',
+        id: 'mid-word-test-cjk-next-run',
+        runs: [
+          {
+            text: '根据《公司法》及本公司章程的有关规定， ',
+            fontFamily: 'Arial',
+            fontSize: 16,
+          },
+          {
+            text: '变更名称',
+            fontFamily: 'Arial',
+            fontSize: 16,
+            underline: { style: 'single' },
+          },
+          {
+            text: '董事会会议于____年____月____日在',
+            fontFamily: 'Arial',
+            fontSize: 16,
+          },
+        ],
+        attrs: { indent: { firstLine: 28 } },
+      };
+
+      const measure = expectParagraphMeasure(await measureBlock(block, 553.7333333333));
+      const firstLineText = extractLineText(block, measure.lines[0]);
+
+      expect(firstLineText).not.toBe('根据《公司法》及本公司章程的有关规定， 变更名称');
+      expect(firstLineText).toContain('变更名称董');
+    });
+
     it('handles words that fit exactly without unnecessary breaking', async () => {
       const block: FlowBlock = {
         kind: 'paragraph',

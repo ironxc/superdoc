@@ -1415,6 +1415,34 @@ describe('toFlowBlocks', () => {
       expect(blocks[0].runs[0].fontSize).toBeGreaterThan(0);
     });
 
+    it('preserves caret PM range for a list paragraph that contains only an empty run wrapper', () => {
+      const pmDoc = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            attrs: {
+              numberingProperties: { numId: 7, ilvl: 0 },
+              listRendering: {
+                numberingType: 'chineseCounting',
+                path: [3],
+                markerText: '三、',
+              },
+            },
+            content: [{ type: 'run', content: [] }],
+          },
+        ],
+      };
+
+      const { blocks } = toFlowBlocks(pmDoc);
+
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0]).toMatchObject({
+        kind: 'paragraph',
+        runs: [{ text: '', pmStart: 1, pmEnd: 1 }],
+      });
+    });
+
     it('handles paragraph with empty content array', () => {
       const pmDoc = {
         type: 'doc',

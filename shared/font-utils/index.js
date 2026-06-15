@@ -67,6 +67,17 @@ const SERIF_LIKE_FONTS = new Set([
   'constantia',
 ]);
 
+const CJK_FONT_FALLBACKS = Object.freeze({
+  仿宋: 'FangSong, STFangsong, Songti SC, SimSun, serif',
+  仿宋_gb2312: 'FangSong, STFangsong, Songti SC, SimSun, serif',
+  fangsong: 'STFangsong, Songti SC, SimSun, serif',
+  stfangsong: 'FangSong, Songti SC, SimSun, serif',
+  宋体: 'SimSun, Songti SC, serif',
+  simsun: 'Songti SC, serif',
+  华文仿宋: 'STFangsong, FangSong, Songti SC, SimSun, serif',
+  华文宋体: 'Songti SC, SimSun, serif',
+});
+
 const normalizeFontNameForLookup = (fontName) => {
   if (!fontName || typeof fontName !== 'string') return '';
   return fontName
@@ -75,8 +86,10 @@ const normalizeFontNameForLookup = (fontName) => {
     .toLowerCase();
 };
 
-const inferGenericFallbackFromFontName = (fontName) =>
-  SERIF_LIKE_FONTS.has(normalizeFontNameForLookup(fontName)) ? 'serif' : DEFAULT_GENERIC_FALLBACK;
+const inferGenericFallbackFromFontName = (fontName) => {
+  const normalized = normalizeFontNameForLookup(fontName);
+  return CJK_FONT_FALLBACKS[normalized] ?? (SERIF_LIKE_FONTS.has(normalized) ? 'serif' : DEFAULT_GENERIC_FALLBACK);
+};
 
 /**
  * Normalizes a comma-separated font-family string into an array of trimmed, non-empty parts.

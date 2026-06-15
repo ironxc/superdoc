@@ -95,6 +95,26 @@ function sourceAnchorFromNode(node: PMNode): SourceAnchor | undefined {
     : undefined;
 }
 
+function createEmptyParagraphRun(
+  para: PMNode,
+  positions: PositionMap,
+  defaultFont: string,
+  defaultSize: number,
+): TextRun {
+  const emptyRun: TextRun = {
+    text: '',
+    fontFamily: defaultFont,
+    fontSize: defaultSize,
+  };
+  const paraPos = positions.get(para);
+  if (paraPos) {
+    const caretPos = paraPos.start + 1;
+    emptyRun.pmStart = caretPos;
+    emptyRun.pmEnd = caretPos;
+  }
+  return emptyRun;
+}
+
 // ============================================================================
 // Helper functions for inline image detection and conversion
 // ============================================================================
@@ -615,21 +635,9 @@ export function paragraphToFlowBlocks({
       return blocks;
     }
     const paragraphMarkTrackedChange = getParagraphMarkTrackedChange(paragraphProps, storyKey);
-    // Get the PM position of the empty paragraph for caret rendering
-    const paraPos = positions.get(para);
-    const emptyRun: TextRun = {
-      text: '',
-      fontFamily: defaultFont,
-      fontSize: defaultSize,
-    };
+    const emptyRun = createEmptyParagraphRun(para, positions, defaultFont, defaultSize);
     if (paragraphMarkTrackedChange) {
       emptyRun.trackedChange = paragraphMarkTrackedChange;
-    }
-    // For empty paragraphs, the cursor position is inside the paragraph (start + 1)
-    // The range spans from the opening to closing position of the paragraph
-    if (paraPos) {
-      emptyRun.pmStart = paraPos.start + 1;
-      emptyRun.pmEnd = paraPos.start + 1;
     }
     let emptyParagraphAttrs = deepClone(paragraphAttrs);
     if (isSectPrMarker) {
@@ -874,13 +882,7 @@ export function paragraphToFlowBlocks({
     blocks.push({
       kind: 'paragraph',
       id: baseBlockId,
-      runs: [
-        {
-          text: '',
-          fontFamily: defaultFont,
-          fontSize: defaultSize,
-        },
-      ],
+      runs: [createEmptyParagraphRun(para, positions, defaultFont, defaultSize)],
       attrs: deepClone(paragraphAttrs),
       sourceAnchor,
     });

@@ -45,6 +45,33 @@ describe('generateOrderedListIndex', () => {
     expect(result).toBe('21st');
   });
 
+  it('formats Word chineseCounting markers', () => {
+    const at = (n: number) =>
+      generateOrderedListIndex({ listLevel: [n], lvlText: '%1、', listNumberingType: 'chineseCounting' });
+    expect(at(1)).toBe('一、');
+    expect(at(2)).toBe('二、');
+    expect(at(10)).toBe('十、');
+    expect(at(11)).toBe('十一、');
+    expect(at(21)).toBe('二十一、');
+  });
+
+  it('formats common Word Chinese counting aliases', () => {
+    expect(
+      generateOrderedListIndex({
+        listLevel: [3],
+        lvlText: '%1、',
+        listNumberingType: 'chineseCountingThousand',
+      }),
+    ).toBe('三、');
+    expect(
+      generateOrderedListIndex({
+        listLevel: [4],
+        lvlText: '%1、',
+        listNumberingType: 'chineseLegalSimplified',
+      }),
+    ).toBe('四、');
+  });
+
   it('pads custom formats that match the Word pattern', () => {
     const result = generateOrderedListIndex({
       listLevel: [7],

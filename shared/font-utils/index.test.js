@@ -346,6 +346,11 @@ describe('toCssFontFamily', () => {
       expect(toCssFontFamily('微软雅黑')).toBe('微软雅黑, sans-serif');
     });
 
+    it('should use Word-like fallback stacks for common Chinese serif fonts', () => {
+      expect(toCssFontFamily('仿宋_GB2312')).toBe('仿宋_GB2312, FangSong, STFangsong, Songti SC, SimSun, serif');
+      expect(toCssFontFamily('宋体')).toBe('宋体, SimSun, Songti SC, serif');
+    });
+
     it('should handle very long font name', () => {
       const longName = 'A'.repeat(500);
       expect(toCssFontFamily(longName)).toBe(`${longName}, sans-serif`);
