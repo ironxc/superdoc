@@ -474,6 +474,16 @@ export class ProseMirrorRenderer implements EditorRenderer {
   private resizeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   /**
+   * Style node containing @font-face rules generated from the currently loaded document.
+   */
+  private documentFontStyleElement: HTMLStyleElement | null = null;
+
+  /**
+   * Object URLs created for the currently loaded document's embedded fonts.
+   */
+  private documentFontObjectUrls: string[] = [];
+
+  /**
    * Attach the renderer to a DOM element and create a ProseMirror view.
    *
    * Destroys any existing view before creating a new one to prevent memory leaks.
@@ -529,6 +539,33 @@ export class ProseMirrorRenderer implements EditorRenderer {
 
     this.view?.destroy();
     this.view = null;
+    this.#clearDocumentFonts();
+  }
+
+  #clearDocumentFonts(): void {
+    this.documentFontStyleElement?.remove();
+    this.documentFontStyleElement = null;
+
+    for (const url of this.documentFontObjectUrls) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // Best-effort cleanup: revocation may be unavailable in restricted runtimes.
+      }
+    }
+    this.documentFontObjectUrls = [];
+  }
+
+  #collectFontObjectUrls(styleString: string): string[] {
+    const urls: string[] = [];
+    const urlPattern = /url\((["']?)(blob:[^)'" ]+)\1\)/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = urlPattern.exec(styleString))) {
+      urls.push(match[2]);
+    }
+
+    return urls;
   }
 
   /**
@@ -598,6 +635,9 @@ export class ProseMirrorRenderer implements EditorRenderer {
    * @param editor - The editor instance containing font data via converter
    */
   initFonts(editor: Editor): void {
+    this.#clearDocumentFonts();
+    editor.fontsImported = [];
+
     const results = editor.converter.getFontFaceImportString();
 
     if (results?.styleString?.length) {
@@ -606,8 +646,12 @@ export class ProseMirrorRenderer implements EditorRenderer {
         style.textContent = results.styleString;
         document.head.appendChild(style);
 
+        this.documentFontStyleElement = style;
+        this.documentFontObjectUrls = this.#collectFontObjectUrls(results.styleString);
         editor.fontsImported = results.fontsImported;
       } catch (error) {
+        this.#clearDocumentFonts();
+        editor.fontsImported = [];
         // Log error but don't crash - fonts are a progressive enhancement
         console.warn('Failed to inject fonts into DOM:', error);
       }

@@ -4531,7 +4531,13 @@ export class Editor extends EventEmitter<EditorEventMap> {
     this.#createConverter();
     initPartsRuntime(this);
     this.#initMedia();
+    if (!this.options.isHeadless) {
+      this.#initFonts();
+    }
     this.initDefaultStyles();
+    if (!this.options.isHeadless) {
+      this.#checkFonts();
+    }
 
     if (this.options.ydoc && this.options.collaborationProvider) {
       const ydoc = this.options.ydoc as import('yjs').Doc;
