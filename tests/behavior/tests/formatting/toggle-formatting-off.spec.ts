@@ -8,7 +8,7 @@ const DOC_PATH = path.resolve(__dirname, '../../test-data/styles/sd-1727-formatt
 
 test.use({ config: { toolbar: 'full' } });
 
-test.skip(!fs.existsSync(DOC_PATH), 'Test document not available — run pnpm corpus:pull');
+test.skip(!fs.existsSync(DOC_PATH), 'Test document not available — run pnpm --dir tests/visual docs:download');
 
 test('toggle bold off retains other formatting', async ({ superdoc }) => {
   await superdoc.loadDocument(DOC_PATH);
@@ -46,8 +46,8 @@ test('toggle bold off retains other formatting', async ({ superdoc }) => {
   await superdoc.type('hello italic');
   await superdoc.waitForStable();
 
-  await expect(superdoc.page.locator('[data-item="btn-italic"]')).toHaveClass(/active/);
-  await expect(superdoc.page.locator('[data-item="btn-bold"]')).not.toHaveClass(/active/);
+  await expect(superdoc.page.locator('[data-item="btn-italic"]')).toHaveClass(/sd-active/);
+  await expect(superdoc.page.locator('[data-item="btn-bold"]')).not.toHaveClass(/sd-active/);
 
   await superdoc.snapshot('toggle-formatting-off');
 });

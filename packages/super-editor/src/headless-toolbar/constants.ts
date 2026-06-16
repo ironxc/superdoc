@@ -1,3 +1,5 @@
+import { getDefaultFontFamilyOptions } from '@superdoc/font-system';
+
 export const DEFAULT_TEXT_ALIGN_OPTIONS = [
   { label: 'Left', value: 'left' },
   { label: 'Center', value: 'center' },
@@ -59,13 +61,13 @@ export const DEFAULT_FONT_SIZE_OPTIONS = [
   { label: '96', value: '96pt' },
 ] as const;
 
-export const DEFAULT_FONT_FAMILY_OPTIONS = [
-  { label: 'Aptos', value: 'Aptos, Arial, sans-serif' },
-  { label: 'Georgia', value: 'Georgia, serif' },
-  { label: 'Arial', value: 'Arial, sans-serif' },
-  { label: 'Courier New', value: 'Courier New, monospace' },
-  { label: 'Times New Roman', value: 'Times New Roman, serif' },
-] as const;
+/**
+ * Default headless-toolbar font options, derived from the shared font-offering registry
+ * (`@superdoc/font-system`) instead of a hand-maintained list. The registry owns the conservative
+ * no-package toolbar baseline. `label` is the Word-facing logical name (stored/exported);
+ * `value` is the logical CSS stack applied to the run.
+ */
+export const DEFAULT_FONT_FAMILY_OPTIONS = getDefaultFontFamilyOptions();
 
 export const DEFAULT_TEXT_COLOR_OPTIONS = [
   { label: 'Black', value: '#000000' },

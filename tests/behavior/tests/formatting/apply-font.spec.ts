@@ -8,7 +8,7 @@ const DOC_PATH = path.resolve(__dirname, '../../test-data/other/sd-1778-apply-fo
 
 test.use({ config: { toolbar: 'full' } });
 
-test.skip(!fs.existsSync(DOC_PATH), 'Test document not available — run pnpm corpus:pull');
+test.skip(!fs.existsSync(DOC_PATH), 'Test document not available — run pnpm --dir tests/visual docs:download');
 
 test('apply Courier New font to selected text in loaded document', async ({ superdoc }) => {
   await superdoc.loadDocument(DOC_PATH);
@@ -33,7 +33,7 @@ test('apply Courier New font to selected text in loaded document', async ({ supe
   await superdoc.assertTextContains(originalText.substring(0, 20));
 
   // Verify font applied via toolbar state for the current selection.
-  await expect(superdoc.page.locator('[data-item="btn-fontFamily"] .button-label')).toHaveText('Courier New');
+  await expect(superdoc.page.locator('[data-item="btn-fontFamily"] .sd-button-label')).toHaveText('Courier New');
 
   await superdoc.snapshot('apply-font-courier');
 });

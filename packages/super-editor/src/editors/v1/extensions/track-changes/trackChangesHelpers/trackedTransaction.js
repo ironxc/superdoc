@@ -9,6 +9,7 @@ import { replaceAroundStep } from './replaceAroundStep.js';
 import { TrackDeleteMarkName, TrackInsertMarkName } from '../constants.js';
 import { TrackChangesBasePluginKey } from '../plugins/index.js';
 import { findMark } from '@core/helpers/index.js';
+import { CustomSelectionPluginKey } from '@core/selection-state.js';
 import { CommentsPluginKey } from '../../comment/comments-plugin.js';
 import {
   getCurrentUserIdentity,
@@ -31,6 +32,31 @@ const DEAD_KEY_PLACEHOLDER_MARKS = new Map([
   ['~', '\u0303'],
   ['¨', '\u0308'],
 ]);
+
+const TRACKABLE_META_KEYS = [
+  'inputType',
+  'uiEvent',
+  'paste',
+  'pointer',
+  'composition',
+  'superdocSlicePaste',
+  'forceTrackChanges',
+  'protectTrackedReviewState',
+  CustomSelectionPluginKey.key,
+];
+
+const PASSTHROUGH_META_KEYS = [
+  'inputType',
+  'uiEvent',
+  'paste',
+  'pointer',
+  'composition',
+  'addToHistory',
+  'superdocSlicePaste',
+  CustomSelectionPluginKey.key,
+];
+
+const ALLOWED_META_KEYS = new Set([...TRACKABLE_META_KEYS, ySyncPluginKey.key]);
 
 const getTextNodeAtPos = ({ doc, pos }) => {
   let found = null;
@@ -275,6 +301,15 @@ const mergeTrackChangesMeta = (tr, extraMeta) => {
   tr.setMeta(TrackChangesBasePluginKey, { ...existingMeta, ...extraMeta });
 };
 
+const copyPassthroughMeta = (sourceTr, targetTr) => {
+  PASSTHROUGH_META_KEYS.forEach((key) => {
+    const value = sourceTr.getMeta(key);
+    if (value !== undefined) {
+      targetTr.setMeta(key, value);
+    }
+  });
+};
+
 const getPendingDeadKeyPlaceholder = ({ tr, newTr, user }) => {
   if (!isCompositionTransaction(tr) || tr.steps.length !== 1) {
     return null;
@@ -343,22 +378,26 @@ const getPendingDeadKeyPlaceholder = ({ tr, newTr, user }) => {
  *   transaction ready to dispatch.
  */
 export const trackedTransaction = ({ tr, state, user, replacements = 'paired' }) => {
-  const onlyInputTypeMeta = ['inputType', 'uiEvent', 'paste', 'pointer', 'composition'];
   const notAllowedMeta = ['historyUndo', 'historyRedo', 'acceptReject'];
   const isProgrammaticInput = tr.getMeta('inputType') === 'programmatic';
   const ySyncMeta = tr.getMeta(ySyncPluginKey);
   const pendingDeadKeyPlaceholder = TrackChangesBasePluginKey.getState(state)?.pendingDeadKeyPlaceholder ?? null;
-  const allowedMeta = new Set([
-    ...onlyInputTypeMeta,
-    ySyncPluginKey.key,
-    'forceTrackChanges',
-    'protectTrackedReviewState',
-  ]);
-  const hasDisallowedMeta = tr.meta && Object.keys(tr.meta).some((meta) => !allowedMeta.has(meta));
+  const hasDisallowedMeta = tr.meta && Object.keys(tr.meta).some((meta) => !ALLOWED_META_KEYS.has(meta));
+  // Runtime block-identity repair (`plan-engine/repair-block-identities.ts`)
+  // dispatches a metadata-only transaction that rewrites duplicate paraId /
+  // sdBlockId values via `tr.setNodeAttribute`. The repair is
+  // remediation — not a user edit — so it must bypass track-changes
+  // wrapping, exactly as Yjs and acceptReject do. Checked explicitly so the
+  // bypass is intentional at this call site rather than implicit via the
+  // disallowed-meta fall-through. The legacy `hasDisallowedMeta` branch
+  // would otherwise still catch this key; keeping the explicit check keeps
+  // the contract documented at both ends.
+  const isBlockIdentityRepair = Boolean(tr.getMeta('superdoc/block-identity-repair'));
 
   if (
     ySyncMeta?.isChangeOrigin || // Skip Yjs-origin transactions (remote/rehydration).
     !tr.steps.length ||
+    isBlockIdentityRepair || // Skip runtime paraId/sdBlockId repair.
     (hasDisallowedMeta && !isProgrammaticInput) ||
     notAllowedMeta.includes(tr.getMeta('inputType')) ||
     tr.getMeta(CommentsPluginKey) // Skip if it's a comment transaction.
@@ -442,21 +481,7 @@ export const trackedTransaction = ({ tr, state, user, replacements = 'paired' })
     }
   });
 
-  if (tr.getMeta('inputType')) {
-    newTr.setMeta('inputType', tr.getMeta('inputType'));
-  }
-
-  if (tr.getMeta('uiEvent')) {
-    newTr.setMeta('uiEvent', tr.getMeta('uiEvent'));
-  }
-
-  if (tr.getMeta('composition') !== undefined) {
-    newTr.setMeta('composition', tr.getMeta('composition'));
-  }
-
-  if (tr.getMeta('addToHistory') !== undefined) {
-    newTr.setMeta('addToHistory', tr.getMeta('addToHistory'));
-  }
+  copyPassthroughMeta(tr, newTr);
 
   mergeTrackChangesMeta(newTr, {
     pendingDeadKeyPlaceholder: getPendingDeadKeyPlaceholder({ tr, newTr, user }),

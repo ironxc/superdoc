@@ -42,6 +42,7 @@ export type ReferenceGroupKey =
   | 'format.paragraph'
   | 'styles'
   | 'styles.paragraph'
+  | 'templates'
   | 'lists'
   | 'comments'
   | 'trackChanges'
@@ -542,6 +543,7 @@ function mutationOperation(options: {
   deterministicTargetResolution?: boolean;
   remediationHints?: readonly string[];
   historyUnsafe?: boolean;
+  returnsPromise?: boolean;
 }): CommandStaticMetadata {
   return {
     mutates: true,
@@ -556,6 +558,7 @@ function mutationOperation(options: {
     deterministicTargetResolution: options.deterministicTargetResolution ?? true,
     remediationHints: options.remediationHints,
     historyUnsafe: options.historyUnsafe,
+    returnsPromise: options.returnsPromise,
   };
 }
 
@@ -972,7 +975,7 @@ export const OPERATION_DEFINITIONS = {
       idempotency: 'conditional',
       supportsDryRun: true,
       supportsTrackedMode: true,
-      possibleFailureCodes: ['INVALID_TARGET'],
+      possibleFailureCodes: ['INVALID_TARGET', 'NO_OP'],
       throws: [...T_NOT_FOUND_CAPABLE, 'INVALID_TARGET', 'INVALID_INPUT', ...T_STORY],
     }),
     referenceDocPath: 'format/apply.mdx',
@@ -1054,7 +1057,7 @@ export const OPERATION_DEFINITIONS = {
       idempotency: 'conditional',
       supportsDryRun: true,
       supportsTrackedMode: true,
-      possibleFailureCodes: ['INVALID_TARGET'],
+      possibleFailureCodes: ['INVALID_TARGET', 'NO_OP'],
       throws: [...T_NOT_FOUND_CAPABLE, 'INVALID_TARGET', 'INVALID_INPUT', ...T_STORY],
     }),
     referenceDocPath: 'format/apply.mdx',
@@ -1080,6 +1083,37 @@ export const OPERATION_DEFINITIONS = {
     }),
     referenceDocPath: 'styles/apply.mdx',
     referenceGroup: 'styles',
+  },
+
+  'templates.apply': {
+    memberPath: 'templates.apply',
+    description:
+      'Apply detected DOCX template/substrate (styles, numbering, settings, theme, font table, web settings, headers/footers, section defaults) from a source package onto the current document, preserving body content. Scopes are auto-detected from source package evidence.',
+    expectedResult:
+      'Returns a TemplatesApplyReceipt with detected/applied/skipped scopes, unsupported items, changed parts, id mappings, and warnings.',
+    requiresDocumentContext: true,
+    metadata: mutationOperation({
+      idempotency: 'conditional',
+      supportsDryRun: true,
+      supportsTrackedMode: false,
+      // The adapter bridges runtime engine failures into receipt failures, so
+      // possibleFailureCodes must list every code that can appear in a returned
+      // { success: false, failure } receipt (see contract.test.ts parity test).
+      possibleFailureCodes: [
+        'UNSUPPORTED_SOURCE',
+        'INVALID_PACKAGE',
+        'CAPABILITY_UNAVAILABLE',
+        'UNSUPPORTED_TEMPLATE_CONTENT',
+      ],
+      throws: ['INVALID_INPUT', 'CAPABILITY_UNAVAILABLE', 'REVISION_MISMATCH'],
+      historyUnsafe: true,
+      // First async Document API operation (SD-3247): the receipt-returning path
+      // resolves a Promise (async OPC/ZIP source loading). Pre-apply throws above
+      // still fire synchronously. Callers must await editor.doc.templates.apply().
+      returnsPromise: true,
+    }),
+    referenceDocPath: 'templates/apply.mdx',
+    referenceGroup: 'templates',
   },
 
   'create.paragraph': {
@@ -1259,8 +1293,8 @@ export const OPERATION_DEFINITIONS = {
   },
   'sections.setPageNumbering': {
     memberPath: 'sections.setPageNumbering',
-    description: 'Set page numbering format/start for a section.',
-    expectedResult: 'Returns a SectionMutationResult receipt; reports NO_OP if page numbering format already matches.',
+    description: 'Set page numbering format/start and chapter numbering settings for a section.',
+    expectedResult: 'Returns a SectionMutationResult receipt; reports NO_OP if page numbering settings already match.',
     requiresDocumentContext: true,
     metadata: mutationOperation({
       idempotency: 'conditional',
@@ -2481,7 +2515,7 @@ export const OPERATION_DEFINITIONS = {
     memberPath: 'trackChanges.list',
     description: 'List all tracked changes in the document.',
     expectedResult:
-      'Returns a TrackChangesListResult with tracked change entries (`insert`, `delete`, `replacement`, `format`), total count, and raw imported Word OOXML revision IDs (`w:id`) when available.',
+      'Returns a TrackChangesListResult with tracked change entries (`insert`, `delete`, `replacement`, `format`), total count, and raw imported Word OOXML revision IDs (`w:id`) when available. Whole-table tracked insertions and deletions are surfaced through the legacy `insert` / `delete` types.',
     requiresDocumentContext: true,
     metadata: readOperation({
       idempotency: 'idempotent',
@@ -2496,7 +2530,7 @@ export const OPERATION_DEFINITIONS = {
     memberPath: 'trackChanges.get',
     description: 'Retrieve a single tracked change by ID.',
     expectedResult:
-      'Returns a TrackChangeInfo object with the change type (`insert`, `delete`, `replacement`, `format`), author, date, affected content, and raw imported Word OOXML revision IDs (`w:id`) when available.',
+      'Returns a TrackChangeInfo object with the change type (`insert`, `delete`, `replacement`, `format`), author, date, affected content, and raw imported Word OOXML revision IDs (`w:id`) when available. Whole-table tracked insertions and deletions are surfaced through the legacy `insert` / `delete` types.',
     requiresDocumentContext: true,
     metadata: readOperation({
       idempotency: 'idempotent',
@@ -2517,6 +2551,7 @@ export const OPERATION_DEFINITIONS = {
       supportsTrackedMode: false,
       possibleFailureCodes: [
         'NO_OP',
+        'INVALID_INPUT',
         'INVALID_TARGET',
         'TARGET_NOT_FOUND',
         'CAPABILITY_UNAVAILABLE',

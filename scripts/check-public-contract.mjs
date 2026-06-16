@@ -47,20 +47,27 @@
  *                                      grandfathered baseline); fails
  *                                      on any type-bearing JSDoc. See
  *                                      packages/superdoc/scripts/type-hygiene.md.
- *   6. public-method-coverage        - obligation-based ratchet over
+ *   6. public-method-coverage        - strict-zero obligation gate over
  *                                      public SuperDoc methods +
  *                                      getters. For each member the
  *                                      AST computes which obligations
  *                                      are meaningful (parameters /
- *                                      returns / call); each unmet
- *                                      obligation must be on the debt
- *                                      snapshot or the gate fails.
- *                                      Call sites do NOT satisfy
- *                                      parameters/returns obligations
- *                                      on their own — that's why
- *                                      `search(text: string)` shipped
- *                                      under v1 of this gate.
- *   7. build                         - vite build + the postbuild
+ *                                      returns / call); the gate fails
+ *                                      on any unmet obligation. The
+ *                                      only escape hatch is the
+ *                                      public-method-coverage-allowlist
+ *                                      (intentionally non-consumer-
+ *                                      callable members). Call sites
+ *                                      do NOT satisfy parameters/
+ *                                      returns obligations on their own
+ *                                      — that's why `search(text: string)`
+ *                                      shipped under v1 of this gate.
+ *   7. font-license-gate             - verifies every bundled WOFF2 has a
+ *                                      legal manifest row, license notice,
+ *                                      stable hash, and runtime manifest entry.
+ *                                      Fails before the package build if a
+ *                                      new bundled font lacks notices.
+ *   8. build                         - vite build + the postbuild
  *                                      validator chain
  *                                      (check-tsconfig-type-surface,
  *                                      ensure-types, audit-bundle,
@@ -71,22 +78,22 @@
  *                                      Skipped when `--skip-build` is
  *                                      passed (CI calls `pnpm run build`
  *                                      separately in its own step).
- *   8. consumer-typecheck-matrix     - packs superdoc + installs the
+ *   9. consumer-typecheck-matrix     - packs superdoc + installs the
  *                                      tarball into
  *                                      tests/consumer-typecheck/
  *                                      node_modules/, then runs every
  *                                      consumer scenario.
- *   9. deep-type-audit-supported-root - strict gate on the supported-
+ *  10. deep-type-audit-supported-root - strict gate on the supported-
  *                                      root public surface; fails on any
  *                                      `any` leak. Reuses the install
  *                                      from stage 8.
- *  10. package-shape                 - publint + attw against the packed
+ *  11. package-shape                 - publint + attw against the packed
  *                                      manifest. Reuses the tarball
  *                                      from stage 8.
- *  11. export-snapshots              - super-editor / legacy / root
+ *  12. export-snapshots              - super-editor / legacy / root
  *                                      no-growth export snapshots.
  *                                      Reuses the install.
- *  12. root-classification-closure   - no supported-root or legacy-root
+ *  13. root-classification-closure   - no supported-root or legacy-root
  *                                      export references an internal-
  *                                      candidate type in its public
  *                                      declared shape (SD-3212 A1b).
@@ -186,11 +193,24 @@ const stages = [
     cmd: 'node',
     args: ['tests/consumer-typecheck/check-public-method-coverage.mjs'],
     blurb:
-      'Obligation-based ratchet over public SuperDoc methods + getters. ' +
+      'Strict-zero obligation gate over public SuperDoc methods + getters. ' +
       'Each member has computed obligations (parameters / returns / call) ' +
-      'that must be satisfied by a typed assertion in a consumer fixture, ' +
-      'or be on the debt snapshot. Call sites do NOT satisfy parameters/' +
-      'returns on their own (this is why search(text: string) shipped).',
+      'that must be satisfied by a typed assertion in a consumer fixture; ' +
+      'the gate fails on any unmet obligation. Only escape hatch is the ' +
+      'public-method-coverage-allowlist for intentionally non-consumer-callable ' +
+      'members. Call sites do NOT satisfy parameters/returns on their own ' +
+      '(this is why search(text: string) shipped).',
+  },
+  {
+    name: 'font-license-gate',
+    cwd: REPO_ROOT,
+    cmd: 'pnpm',
+    args: ['run', 'check:font-licenses'],
+    blurb:
+      'Bundled font compliance gate: every .woff2 under shared/font-system/assets ' +
+      'must have an asset/legal manifest row, stable hash, matching runtime manifest ' +
+      'entry, and required license notices. Fails before build if a new bundled font ' +
+      'ships without legal metadata.',
   },
   {
     name: 'build',
@@ -208,9 +228,7 @@ const stages = [
     cwd: resolve(REPO_ROOT, 'tests/consumer-typecheck'),
     cmd: 'node',
     args: ['typecheck-matrix.mjs'],
-    blurb:
-      'Packs superdoc + installs the tarball into the consumer fixture, ' +
-      'then runs every typecheck scenario.',
+    blurb: 'Packs superdoc + installs the tarball into the consumer fixture, ' + 'then runs every typecheck scenario.',
   },
   {
     name: 'deep-type-audit-supported-root',
@@ -247,6 +265,17 @@ const stages = [
     blurb:
       'Closure gate: no supported-root or legacy-root export references an ' +
       'internal-candidate type in its public declared shape (SD-3212 A1b).',
+  },
+  {
+    name: 'docs-snippet-typecheck',
+    cwd: REPO_ROOT,
+    cmd: 'pnpm',
+    args: ['--filter', '@superdoc/docs', 'run', 'check:types'],
+    blurb:
+      'Docs snippet type-check (SD-673): extracts "Full Example" code blocks under ' +
+      'apps/docs/editor/superdoc/** (JS + TS fences) and runs `tsc --noEmit --strict` ' +
+      '(with allowJs + checkJs for JS) against packages/superdoc/dist. Catches drift ' +
+      'between docs examples and the typed public surface.',
   },
 ];
 
