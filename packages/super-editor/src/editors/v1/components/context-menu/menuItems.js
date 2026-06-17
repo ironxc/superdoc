@@ -138,7 +138,7 @@ const buildProofingItems = (context) => {
 
   items.push({
     id: 'proofing-ignore',
-    label: 'Ignore',
+    label: '忽略',
     isDefault: true,
     action: (editor, context) => {
       const proofing = context.proofingContext;

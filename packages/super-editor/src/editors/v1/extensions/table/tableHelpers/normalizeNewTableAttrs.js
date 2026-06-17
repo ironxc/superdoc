@@ -5,8 +5,8 @@ import {
   TABLE_FALLBACK_BORDERS,
   TABLE_FALLBACK_CELL_PADDING,
   TABLE_STYLE_ID_TABLE_GRID,
+  resolveTableProperties,
 } from '@superdoc/style-engine/ooxml';
-import { readDefaultTableStyle, readSettingsRoot } from '../../../document-api-adapters/document-settings.js';
 import { readTranslatedLinkedStyles } from '../../../core/parts/adapters/styles-read.js';
 import { eighthPointsToPixels } from '../../../core/super-converter/helpers.js';
 import { cloneBorders, mapBorderSizes } from './border-utils.js';
@@ -27,17 +27,7 @@ import { cloneBorders, mapBorderSizes } from './border-utils.js';
  */
 export function resolvePreferredNewTableStyleIdFromEditor(editor) {
   const translatedLinkedStyles = readTranslatedLinkedStyles(editor);
-
-  let settingsDefaultStyleId = null;
-  const converter = editor?.converter;
-  if (converter) {
-    const settingsRoot = readSettingsRoot(converter);
-    if (settingsRoot) {
-      settingsDefaultStyleId = readDefaultTableStyle(settingsRoot);
-    }
-  }
-
-  return resolvePreferredNewTableStyleId(settingsDefaultStyleId, translatedLinkedStyles);
+  return resolvePreferredNewTableStyleId(null, translatedLinkedStyles);
 }
 
 /**
@@ -52,25 +42,16 @@ export function resolvePreferredNewTableStyleIdFromEditor(editor) {
  * @returns {NormalizedTableAttrs}
  */
 export function normalizeNewTableAttrs(editor) {
+  const translatedLinkedStyles = readTranslatedLinkedStyles(editor);
   const resolved = resolvePreferredNewTableStyleIdFromEditor(editor);
 
   if (resolved.source === 'none') {
-    const fallbackPixelBorders = cloneBorders(TABLE_FALLBACK_BORDERS, TABLE_BORDER_SIDES);
-    mapBorderSizes(fallbackPixelBorders, eighthPointsToPixels);
+    return createFallbackTableAttrs(null);
+  }
 
-    return {
-      tableStyleId: null,
-      borders: fallbackPixelBorders,
-      tableProperties: {
-        borders: { ...TABLE_FALLBACK_BORDERS },
-        cellMargins: {
-          marginTop: { value: TABLE_FALLBACK_CELL_PADDING.top, type: 'dxa' },
-          marginBottom: { value: TABLE_FALLBACK_CELL_PADDING.bottom, type: 'dxa' },
-          marginLeft: { value: TABLE_FALLBACK_CELL_PADDING.left, type: 'dxa' },
-          marginRight: { value: TABLE_FALLBACK_CELL_PADDING.right, type: 'dxa' },
-        },
-      },
-    };
+  const styleHasBorders = hasResolvedTableBorders(resolved.styleId, translatedLinkedStyles);
+  if (!styleHasBorders) {
+    return createFallbackTableAttrs(resolved.styleId);
   }
 
   return {
@@ -89,3 +70,30 @@ export function normalizeNewTableAttrs(editor) {
 export const STANDALONE_TABLE_STYLE_ID = TABLE_STYLE_ID_TABLE_GRID;
 
 const TABLE_BORDER_SIDES = ['top', 'bottom', 'left', 'right', 'insideH', 'insideV'];
+
+const hasResolvedTableBorders = (styleId, translatedLinkedStyles) => {
+  const borders = resolveTableProperties(styleId, translatedLinkedStyles)?.borders;
+  return Boolean(borders && typeof borders === 'object' && Object.keys(borders).length > 0);
+};
+
+const createFallbackTableAttrs = (tableStyleId) => {
+  const fallbackPixelBorders = cloneBorders(TABLE_FALLBACK_BORDERS, TABLE_BORDER_SIDES);
+  mapBorderSizes(fallbackPixelBorders, eighthPointsToPixels);
+
+  const tableProperties = {
+    ...(tableStyleId ? { tableStyleId, tblLook: { ...DEFAULT_TBL_LOOK } } : {}),
+    borders: { ...TABLE_FALLBACK_BORDERS },
+    cellMargins: {
+      marginTop: { value: TABLE_FALLBACK_CELL_PADDING.top, type: 'dxa' },
+      marginBottom: { value: TABLE_FALLBACK_CELL_PADDING.bottom, type: 'dxa' },
+      marginLeft: { value: TABLE_FALLBACK_CELL_PADDING.left, type: 'dxa' },
+      marginRight: { value: TABLE_FALLBACK_CELL_PADDING.right, type: 'dxa' },
+    },
+  };
+
+  return {
+    tableStyleId,
+    borders: fallbackPixelBorders,
+    tableProperties,
+  };
+};

@@ -112,32 +112,25 @@ export function resolveExistingTableEffectiveStyleId(
  * Determines the preferred style ID for a newly created table.
  *
  * Precedence:
- *  1. `w:defaultTableStyle` from settings, if present and resolvable.
- *  2. Type-default table style (`w:default="1"`).
- *  3. `TableGrid` if it exists in catalog (builtin-fallback).
- *  4. `TableNormal` if it exists in catalog (builtin-fallback).
- *  5. No style (`source: 'none'`).
+ *  1. Type-default table style (`w:default="1"`).
+ *  2. `TableGrid` if it exists in catalog (builtin-fallback).
+ *  3. No style (`source: 'none'`).
  */
 export function resolvePreferredNewTableStyleId(
-  settingsDefaultTableStyleId: string | null | undefined,
+  _settingsDefaultTableStyleId: string | null | undefined,
   translatedLinkedStyles: StylesDocumentProperties | null | undefined,
 ): ResolvedStyle {
-  // 1. Settings default
-  if (settingsDefaultTableStyleId && isKnownTableStyleId(settingsDefaultTableStyleId, translatedLinkedStyles)) {
-    return { styleId: settingsDefaultTableStyleId, source: 'settings-default' };
-  }
-
-  // 2. Type-default (skip TableNormal — it's the OOXML base/reset style, not a visual style)
+  // 1. Type-default (skip TableNormal — it's the OOXML base/reset style, not a visual style)
   const typeDefault = findTypeDefaultTableStyleId(translatedLinkedStyles);
   if (typeDefault && typeDefault !== TABLE_STYLE_ID_TABLE_NORMAL) {
     return { styleId: typeDefault, source: 'type-default' };
   }
 
-  // 3. TableGrid builtin
+  // 2. TableGrid builtin
   if (isKnownTableStyleId(TABLE_STYLE_ID_TABLE_GRID, translatedLinkedStyles)) {
     return { styleId: TABLE_STYLE_ID_TABLE_GRID, source: 'builtin-fallback' };
   }
 
-  // 4. No style — use inline fallback borders
+  // 3. No style — use inline fallback borders
   return { styleId: null, source: 'none' };
 }

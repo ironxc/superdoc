@@ -114,10 +114,13 @@ describe('resolveExistingTableEffectiveStyleId', () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe('resolvePreferredNewTableStyleId', () => {
-  it('uses settings default when valid', () => {
-    const styles = withStyles({ MyTableStyle: { type: 'table' } });
+  it('ignores settings default and falls through to TableGrid', () => {
+    const styles = withStyles({
+      MyTableStyle: { type: 'table' },
+      TableGrid: { type: 'table' },
+    });
     const result = resolvePreferredNewTableStyleId('MyTableStyle', styles);
-    expect(result).toEqual({ styleId: 'MyTableStyle', source: 'settings-default' });
+    expect(result).toEqual({ styleId: 'TableGrid', source: 'builtin-fallback' });
   });
 
   it('ignores settings default when it references a non-existent style', () => {
@@ -173,13 +176,13 @@ describe('resolvePreferredNewTableStyleId', () => {
     expect(result).toEqual({ styleId: null, source: 'none' });
   });
 
-  it('settings default takes precedence over type-default', () => {
+  it('type-default takes precedence over settings default', () => {
     const styles = withStyles({
       CustomDefault: { type: 'table' },
-      TableNormal: { type: 'table', default: true },
+      SomeDefault: { type: 'table', default: true },
     });
     const result = resolvePreferredNewTableStyleId('CustomDefault', styles);
-    expect(result).toEqual({ styleId: 'CustomDefault', source: 'settings-default' });
+    expect(result).toEqual({ styleId: 'SomeDefault', source: 'type-default' });
   });
 
   it('type-default takes precedence over builtin fallback', () => {

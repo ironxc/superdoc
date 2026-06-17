@@ -1474,7 +1474,7 @@ describe('Table commands', async () => {
   });
 
   describe('normalizeNewTableAttrs tblLook (SD-2086)', async () => {
-    it('includes DEFAULT_TBL_LOOK in tableProperties when a style is resolved', async () => {
+    it('adds fallback borders when the resolved table style has no borders', async () => {
       const { docx, media, mediaFiles, fonts } = cachedBlankDoc;
       ({ editor } = initTestEditor({ content: docx, media, mediaFiles, fonts }));
 
@@ -1490,7 +1490,80 @@ describe('Table commands', async () => {
       };
 
       const result = normalizeNewTableAttrs(editor);
+      expect(result.tableStyleId).toBe('TableGrid');
       expect(result.tableProperties?.tblLook).toEqual(DEFAULT_TBL_LOOK);
+      expect(result.borders?.top).toBeDefined();
+      expect(result.tableProperties?.borders?.top).toEqual({ val: 'single', size: 4, color: '#000000' });
+
+      editor.converter = originalConverter;
+    });
+
+    it('does not add fallback borders when the resolved table style has borders', async () => {
+      const { docx, media, mediaFiles, fonts } = cachedBlankDoc;
+      ({ editor } = initTestEditor({ content: docx, media, mediaFiles, fonts }));
+
+      const originalConverter = editor.converter;
+      editor.converter = {
+        ...originalConverter,
+        translatedLinkedStyles: {
+          styles: {
+            TableGrid: {
+              type: 'table',
+              tableProperties: {
+                borders: {
+                  top: { val: 'single', size: 4, color: '#000000' },
+                  left: { val: 'single', size: 4, color: '#000000' },
+                  bottom: { val: 'single', size: 4, color: '#000000' },
+                  right: { val: 'single', size: 4, color: '#000000' },
+                  insideH: { val: 'single', size: 4, color: '#000000' },
+                  insideV: { val: 'single', size: 4, color: '#000000' },
+                },
+              },
+            },
+          },
+          docDefaults: {},
+          latentStyles: {},
+        },
+      };
+
+      const result = normalizeNewTableAttrs(editor);
+      expect(result.tableStyleId).toBe('TableGrid');
+      expect(result.borders).toBeUndefined();
+      expect(result.tableProperties?.borders).toBeUndefined();
+      expect(result.tableProperties?.tblLook).toEqual(DEFAULT_TBL_LOOK);
+
+      editor.converter = originalConverter;
+    });
+
+    it('ignores Word settings default table style when creating a new table', async () => {
+      const { docx, media, mediaFiles, fonts } = cachedBlankDoc;
+      ({ editor } = initTestEditor({ content: docx, media, mediaFiles, fonts }));
+
+      const originalConverter = editor.converter;
+      editor.converter = {
+        ...originalConverter,
+        settingsRoot: {
+          elements: [
+            {
+              name: 'w:defaultTableStyle',
+              attributes: { 'w:val': 'CustomWordDefault' },
+            },
+          ],
+        },
+        translatedLinkedStyles: {
+          styles: {
+            CustomWordDefault: { type: 'table' },
+            TableGrid: { type: 'table' },
+          },
+          docDefaults: {},
+          latentStyles: {},
+        },
+      };
+
+      const result = normalizeNewTableAttrs(editor);
+      expect(result.tableStyleId).toBe('TableGrid');
+      expect(result.tableProperties?.tableStyleId).toBe('TableGrid');
+      expect(result.borders?.top).toBeDefined();
 
       editor.converter = originalConverter;
     });

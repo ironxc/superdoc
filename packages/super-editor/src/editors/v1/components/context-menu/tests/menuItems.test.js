@@ -337,7 +337,7 @@ describe('menuItems.js', () => {
         'proofing-replace-1',
         'proofing-ignore',
       ]);
-      expect(proofingSection.items.map((item) => item.label)).toEqual(['the', 'tech', 'Ignore']);
+      expect(proofingSection.items.map((item) => item.label)).toEqual(['the', 'tech', '忽略']);
     });
 
     it('replaces the proofed range when a spelling suggestion is clicked', () => {
@@ -388,7 +388,7 @@ describe('menuItems.js', () => {
       expect(dispatch).toHaveBeenCalledWith(mockEditor.view.state.tr);
     });
 
-    it('calls ignoreWord when the Ignore item is clicked', () => {
+    it('calls ignoreWord when the ignore item is clicked', () => {
       const ignoreWord = vi.fn();
 
       mockContext = createMockContext({

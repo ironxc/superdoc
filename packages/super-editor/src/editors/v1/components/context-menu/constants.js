@@ -50,35 +50,35 @@ export const ICONS = {
 
 // Table actions constant
 export const TEXTS = {
-  addRowBefore: 'Insert row above',
-  addRowAfter: 'Insert row below',
-  addColumnBefore: 'Insert column left',
-  addColumnAfter: 'Insert column right',
-  deleteRow: 'Delete row',
-  deleteColumn: 'Delete column',
-  deleteTable: 'Delete table',
-  removeBorders: 'Remove borders',
-  mergeCells: 'Merge cells',
-  splitCell: 'Split cell',
-  fixTables: 'Fix tables',
-  insertText: 'Insert text',
-  replaceText: 'Replace text',
-  insertLink: 'Insert link',
-  insertTable: 'Insert table',
-  editTable: 'Edit table',
-  cut: 'Cut',
-  copy: 'Copy',
-  paste: 'Paste',
-  removeDocumentSection: 'Remove section',
-  createDocumentSection: 'Create section',
-  trackChangesAccept: 'Accept change',
-  trackChangesReject: 'Reject change',
-  cellBackground: 'Cell background',
-  updateTableOfContents: 'Update table of contents',
-  listRestartNumbering: 'Restart numbering',
-  listContinueNumbering: 'Continue numbering',
-  listDecreaseIndent: 'Decrease indent',
-  listIncreaseIndent: 'Increase indent',
+  addRowBefore: '在上方插入行',
+  addRowAfter: '在下方插入行',
+  addColumnBefore: '在左侧插入列',
+  addColumnAfter: '在右侧插入列',
+  deleteRow: '删除行',
+  deleteColumn: '删除列',
+  deleteTable: '删除表格',
+  removeBorders: '移除边框',
+  mergeCells: '合并单元格',
+  splitCell: '拆分单元格',
+  fixTables: '修复表格',
+  insertText: '插入文本',
+  replaceText: '替换文本',
+  insertLink: '插入链接',
+  insertTable: '插入表格',
+  editTable: '编辑表格',
+  cut: '剪切',
+  copy: '复制',
+  paste: '粘贴',
+  removeDocumentSection: '移除节',
+  createDocumentSection: '创建节',
+  trackChangesAccept: '接受修订',
+  trackChangesReject: '拒绝修订',
+  cellBackground: '单元格背景',
+  updateTableOfContents: '更新目录',
+  listRestartNumbering: '重新开始编号',
+  listContinueNumbering: '继续编号',
+  listDecreaseIndent: '减少缩进',
+  listIncreaseIndent: '增加缩进',
 };
 
 export const tableActionsOptions = [
@@ -88,7 +88,7 @@ export const tableActionsOptions = [
     icon: ICONS.addRowBefore,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Add row before',
+      ariaLabel: '在上方插入行',
     },
   },
   {
@@ -97,7 +97,7 @@ export const tableActionsOptions = [
     icon: ICONS.addRowAfter,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Add row after',
+      ariaLabel: '在下方插入行',
     },
   },
   {
@@ -106,7 +106,7 @@ export const tableActionsOptions = [
     icon: ICONS.addColumnBefore,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Add column before',
+      ariaLabel: '在左侧插入列',
     },
   },
   {
@@ -116,7 +116,7 @@ export const tableActionsOptions = [
     bottomBorder: true,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Add column after',
+      ariaLabel: '在右侧插入列',
     },
   },
   {
@@ -125,7 +125,7 @@ export const tableActionsOptions = [
     icon: ICONS.deleteRow,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Delete row',
+      ariaLabel: '删除行',
     },
   },
   {
@@ -134,7 +134,7 @@ export const tableActionsOptions = [
     icon: ICONS.deleteColumn,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Delete column',
+      ariaLabel: '删除列',
     },
   },
   {
@@ -143,7 +143,7 @@ export const tableActionsOptions = [
     icon: ICONS.deleteTable,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Delete table',
+      ariaLabel: '删除表格',
     },
   },
   {
@@ -153,7 +153,7 @@ export const tableActionsOptions = [
     bottomBorder: true,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Delete cell and table borders',
+      ariaLabel: '删除单元格和表格边框',
     },
   },
   {
@@ -162,7 +162,7 @@ export const tableActionsOptions = [
     icon: ICONS.mergeCells,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Merge cells',
+      ariaLabel: '合并单元格',
     },
   },
   {
@@ -171,7 +171,7 @@ export const tableActionsOptions = [
     icon: ICONS.splitCell,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Split cells',
+      ariaLabel: '拆分单元格',
     },
   },
   {
@@ -180,7 +180,7 @@ export const tableActionsOptions = [
     icon: ICONS.fixTables,
     props: {
       'data-item': 'btn-tableActions-option',
-      ariaLabel: 'Fix tables',
+      ariaLabel: '修复表格',
     },
   },
 ];
