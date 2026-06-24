@@ -1,0 +1,44 @@
+packages/layout-engine/style-engine/src/ooxml/table-style-selection.test.ts
+  2425fac45a8f6323 117-121,123,179,182,185
+packages/super-editor/src/editors/v1/components/context-menu/constants.js
+  2425fac45a8f6323 53-81,91,100,109,119,128,137,146,156,165,174,183
+packages/super-editor/src/editors/v1/extensions/table/tableHelpers/normalizeNewTableAttrs.js
+  2425fac45a8f6323 8,30,45,49-50,52-54,73-99
+packages/layout-engine/style-engine/src/ooxml/table-style-selection.ts
+  2425fac45a8f6323 115-117,120,123,129,134
+packages/super-editor/src/editors/v1/extensions/table/table.test.js
+  2425fac45a8f6323 1477,1493,1495-1566
+packages/super-editor/src/editors/v1/core/presentation-editor/tests/TableSelectionUtilities.test.ts
+  2425fac45a8f6323 307-333
+packages/super-editor/src/editors/v1/core/presentation-editor/tables/TableSelectionUtilities.ts
+  2425fac45a8f6323 271-284
+packages/super-editor/src/editors/v1/components/context-menu/tests/menuItems.test.js
+  2425fac45a8f6323 340,391
+packages/super-editor/src/editors/v1/components/context-menu/menuItems.js
+  2425fac45a8f6323 141
+packages/layout-engine/layout-bridge/src/position-hit.ts
+  2425fac45a8f6323 1181-1188,1190,1192
+packages/layout-engine/layout-bridge/test/clickToPosition.test.ts
+  2425fac45a8f6323 372-458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "c344267ba6dfafc7788146453ce6cab7d1e5bd53",
+  "prompts": {
+    "2425fac45a8f6323": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef872-5fa8-70d2-b487-b638fa4a30a2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "xc",
+      "messages": [],
+      "total_additions": 307,
+      "total_deletions": 103,
+      "accepted_lines": 307,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.tongbaninfo.com/cas/7deb06a7eb0b592d19565664e9f22b12416822c4c8e88dcf88af98921612dbc2"
+    }
+  }
+}
