@@ -1,0 +1,38 @@
+packages/layout-engine/measuring/dom/src/index.test.ts
+  2425fac45a8f6323 1718-1783
+packages/super-editor/src/editors/v1/core/layout-adapter/converters/paragraph.test.ts
+  2425fac45a8f6323 1185-1210
+shared/common/list-numbering/index.ts
+  2425fac45a8f6323 23,38-40
+shared/font-utils/index.js
+  2425fac45a8f6323 70-80,89-92
+packages/layout-engine/measuring/dom/src/index.ts
+  2425fac45a8f6323 190-191,2460-2469,2474,2507-2510,2512-2528
+packages/super-editor/src/editors/v1/core/layout-adapter/converters/paragraph.ts
+  2425fac45a8f6323 101-120,656,926
+shared/common/list-numbering/index.test.ts
+  2425fac45a8f6323 48-74
+shared/font-utils/index.test.js
+  2425fac45a8f6323 349-353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "4aafb9044e2473d0f638a3220f6ebf0e0518d422",
+  "prompts": {
+    "2425fac45a8f6323": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef872-5fa8-70d2-b487-b638fa4a30a2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "xc",
+      "messages": [],
+      "total_additions": 199,
+      "total_deletions": 28,
+      "accepted_lines": 199,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.tongbaninfo.com/cas/85db41ba838a6b60b104b0117538a4bffad515498bf4668ad72a43862bc1558e"
+    }
+  }
+}
