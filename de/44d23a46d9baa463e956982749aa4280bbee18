@@ -1,0 +1,26 @@
+packages/layout-engine/measuring/dom/src/index.ts
+  2425fac45a8f6323 2447-2451,2465-2474,2491-2493,2495-2499,2511-2512,2515-2523
+packages/layout-engine/measuring/dom/src/index.test.ts
+  2425fac45a8f6323 1692-1717
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "de44d23a46d9baa463e956982749aa4280bbee18",
+  "prompts": {
+    "2425fac45a8f6323": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef872-5fa8-70d2-b487-b638fa4a30a2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "xc",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 22,
+      "accepted_lines": 60,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.tongbaninfo.com/cas/3c44f431b58e3f1d0416b99d9d57003ac1da8af76996636c4abcd7dd5e32d313"
+    }
+  }
+}
