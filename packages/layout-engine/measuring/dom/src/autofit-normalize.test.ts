@@ -737,4 +737,39 @@ describe('buildAutoFitWorkingGridInput', () => {
     });
     expect(result.gridColumnCount).toBe(2);
   });
+
+  it('keeps later-row cells in place across an empty rowspan-continuation row', () => {
+    // Post-merge shape: the top-left merged cell keeps rowSpan=2 and the
+    // continuation row is empty (its cells were deleted by the merge). The empty
+    // row must consume the rowspan occupancy so the following row's cells are
+    // not pushed past the spanned columns (which would double the grid column
+    // count and collapse every column width).
+    const block = createTableBlock({
+      columnWidths: [100, 150, 200],
+      rows: [
+        { id: 'row-1', cells: [{ id: 'cell-1', colSpan: 3, rowSpan: 2 }] },
+        { id: 'row-2', cells: [] },
+        {
+          id: 'row-3',
+          cells: [
+            { id: 'cell-2', colSpan: 1 },
+            { id: 'cell-3', colSpan: 1 },
+            { id: 'cell-4', colSpan: 1 },
+          ],
+        },
+      ],
+    });
+
+    const result = buildAutoFitWorkingGridInput(block, { maxWidth: 600 });
+
+    expect(result.gridColumnCount).toBe(3);
+    expect(result.rows[2]).toMatchObject({
+      logicalColumnCount: 3,
+      cells: [
+        { cellId: 'cell-2', startColumn: 0, span: 1 },
+        { cellId: 'cell-3', startColumn: 1, span: 1 },
+        { cellId: 'cell-4', startColumn: 2, span: 1 },
+      ],
+    });
+  });
 });

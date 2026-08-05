@@ -6,6 +6,7 @@ import { createTable } from './tableHelpers/createTable.js';
 import { normalizeNewTableAttrs } from './tableHelpers/normalizeNewTableAttrs.js';
 import { DEFAULT_TBL_LOOK } from '@superdoc/style-engine/ooxml';
 import { eighthPointsToPixels } from '../../core/super-converter/helpers.js';
+import { toFlowBlocks } from '../../core/layout-adapter/internal.js';
 
 // Cache DOCX data to avoid repeated file loading
 let cachedBlankDoc = null;
@@ -1599,6 +1600,85 @@ describe('Table commands', async () => {
       expect(result.tableProperties?.borders?.top?.size).toBe(4);
 
       editor.converter = originalConverter;
+    });
+  });
+
+  describe('mergeCells rowspan continuation row', async () => {
+    it('leaves an empty tableRow at the rowspan continuation position', async () => {
+      const { docx, media, mediaFiles, fonts } = cachedBlankDoc;
+      ({ editor } = initTestEditor({ content: docx, media, mediaFiles, fonts }));
+      ({ schema } = editor);
+
+      const table = createTable(schema, 7, 3, false);
+      const doc = schema.nodes.doc.create(null, [table]);
+      editor.setState(EditorState.create({ schema, doc, plugins: editor.state.plugins }));
+
+      const tablePos = findTablePos(editor.state.doc);
+      const tableStart = tablePos + 1;
+      const map = TableMap.get(editor.state.doc.nodeAt(tablePos));
+
+      // Select full rows 2..3 across all 3 columns (mirrors the user repro).
+      const topLeft = tableStart + map.map[2 * map.width];
+      const bottomRight = tableStart + map.map[3 * map.width + (map.width - 1)];
+      const sel = CellSelection.create(editor.state.doc, topLeft, bottomRight);
+      editor.view.dispatch(editor.state.tr.setSelection(sel));
+
+      const didMerge = editor.commands.mergeCells();
+      expect(didMerge).toBe(true);
+
+      const updatedTable = editor.state.doc.nodeAt(tablePos);
+      // Grid height preserved: 7 rows remain after the merge.
+      expect(TableMap.get(updatedTable).height).toBe(7);
+
+      // Row count preserved in the PM doc.
+      const rows = [];
+      updatedTable.forEach((row) => rows.push(row));
+      expect(rows).toHaveLength(7);
+
+      // Merged cell lives at row 2 and spans both rows; the continuation
+      // position (row 3) is an empty tableRow left behind by prosemirror-tables.
+      expect(rows[2].firstChild.attrs.rowspan).toBe(2);
+      expect(rows[2].firstChild.attrs.colspan).toBe(3);
+      expect(rows[3].childCount).toBe(0);
+    });
+
+    it('keeps the empty continuation row through the runtime serialized-doc path', async () => {
+      const { docx, media, mediaFiles, fonts } = cachedBlankDoc;
+      ({ editor } = initTestEditor({ content: docx, media, mediaFiles, fonts }));
+      ({ schema } = editor);
+
+      const table = createTable(schema, 7, 3, false);
+      const doc = schema.nodes.doc.create(null, [table]);
+      editor.setState(EditorState.create({ schema, doc, plugins: editor.state.plugins }));
+
+      const tablePos = findTablePos(editor.state.doc);
+      const tableStart = tablePos + 1;
+      const map = TableMap.get(editor.state.doc.nodeAt(tablePos));
+      const topLeft = tableStart + map.map[2 * map.width];
+      const bottomRight = tableStart + map.map[3 * map.width + (map.width - 1)];
+      const sel = CellSelection.create(editor.state.doc, topLeft, bottomRight);
+      editor.view.dispatch(editor.state.tr.setSelection(sel));
+      expect(editor.commands.mergeCells()).toBe(true);
+
+      // PresentationEditor serializes the doc with Node.toJSON() before layout.
+      const docJson = editor.state.doc.toJSON();
+      const tableJson = docJson.content.find((node) => node.type === 'table');
+
+      // The empty continuation row survives serialization as a tableRow WITHOUT a
+      // content key (toJSON drops empty content) — the exact shape that used to be
+      // dropped by the adapter.
+      expect(tableJson.content).toHaveLength(7);
+      expect(tableJson.content[3].content).toBeUndefined();
+
+      // Converting the serialized doc must keep all 7 rows (empty continuation row
+      // preserved at index 3), otherwise gridColumnCount doubles and column widths
+      // collapse. Row 0 is a plain 3-cell row because createTable(..., false) has
+      // no header row.
+      const { blocks } = toFlowBlocks(docJson);
+      const tableBlock = blocks.find((block) => block.kind === 'table');
+      expect(tableBlock).toBeDefined();
+      expect(tableBlock.rows).toHaveLength(7);
+      expect(tableBlock.rows.map((row) => row.cells.length)).toEqual([3, 3, 1, 0, 3, 3, 3]);
     });
   });
 });

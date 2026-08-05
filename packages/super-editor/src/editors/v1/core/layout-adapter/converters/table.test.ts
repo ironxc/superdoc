@@ -1886,6 +1886,115 @@ describe('table converter', () => {
 
       expect(result).toBeNull();
     });
+
+    it('preserves an empty rowspan-continuation row instead of dropping it', () => {
+      // Post-merge shape: a vertical merge leaves the top-left cell with rowspan
+      // while prosemirror-tables deletes the continuation row's cells, leaving an
+      // empty tableRow. Dropping that row breaks downstream grid/rowspan
+      // accounting and collapses column widths.
+      const node: PMNode = {
+        type: 'table',
+        content: [
+          {
+            type: 'tableRow',
+            content: [
+              {
+                type: 'tableCell',
+                attrs: { rowspan: 2 },
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'merged' }] }],
+              },
+            ],
+          },
+          {
+            type: 'tableRow',
+            content: [],
+          },
+          {
+            type: 'tableRow',
+            content: [
+              {
+                type: 'tableCell',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'below' }] }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = tableNodeToBlock(
+        node,
+        mockBlockIdGenerator,
+        mockPositionMap,
+        'Arial',
+        16,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockParagraphConverter,
+      ) as TableBlock;
+
+      expect(result).not.toBeNull();
+      expect(result.rows).toHaveLength(3);
+      expect(result.rows[0].cells).toHaveLength(1);
+      expect(result.rows[0].cells[0].rowSpan).toBe(2);
+      expect(result.rows[1].cells).toEqual([]);
+      expect(result.rows[2].cells).toHaveLength(1);
+    });
+
+    it('preserves a serialized empty tableRow that omits the content key (toJSON shape)', () => {
+      // ProseMirror's Node.toJSON() drops the `content` key entirely when content
+      // is empty (content.size === 0). A merged continuation row therefore arrives
+      // as `{ type: 'tableRow', attrs }` with no content at all. The converter must
+      // treat that as an empty-cell row, or the row is dropped and grid/rowspan
+      // accounting collapses the column widths.
+      const node: PMNode = {
+        type: 'table',
+        content: [
+          {
+            type: 'tableRow',
+            content: [
+              {
+                type: 'tableCell',
+                attrs: { rowspan: 2 },
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'merged' }] }],
+              },
+            ],
+          },
+          {
+            type: 'tableRow',
+            attrs: { paraId: 'row-3' },
+          },
+          {
+            type: 'tableRow',
+            content: [
+              {
+                type: 'tableCell',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'below' }] }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = tableNodeToBlock(
+        node,
+        mockBlockIdGenerator,
+        mockPositionMap,
+        'Arial',
+        16,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockParagraphConverter,
+      ) as TableBlock;
+
+      expect(result).not.toBeNull();
+      expect(result.rows).toHaveLength(3);
+      expect(result.rows[1].cells).toEqual([]);
+      expect(result.rows[2].cells).toHaveLength(1);
+    });
   });
 
   describe('handleTableNode', () => {

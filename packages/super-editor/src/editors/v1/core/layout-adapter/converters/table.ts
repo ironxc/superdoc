@@ -731,15 +731,28 @@ const buildRowTrackedChangeMeta = (rowNode: PMNode, storyKey?: string): TrackedC
 
 const parseTableRow = (args: ParseTableRowArgs): TableRow | null => {
   const { rowNode, rowIndex, context, defaultCellPadding, tableProperties, numRows } = args;
-  if (!isTableRowNode(rowNode) || !Array.isArray(rowNode.content)) {
+  if (!isTableRowNode(rowNode)) {
     return null;
   }
+
+  // A serialized ProseMirror doc (Node.toJSON()) omits the `content` key entirely
+  // when a node is empty (content.size === 0). prosemirror-tables leaves an empty
+  // tableRow behind after a cell merge, so rowNode.content is `undefined` here.
+  // Treat missing content as an empty cell array so the continuation row is kept
+  // and downstream grid/rowspan accounting stays aligned. Also unwrap a raw PM
+  // Fragment shape ({ content: [...] }) for callers passing live nodes.
+  const rawContent = rowNode.content as PMNode[] | { content?: PMNode[] } | undefined;
+  const rowContent = Array.isArray(rawContent)
+    ? rawContent
+    : Array.isArray(rawContent?.content)
+      ? (rawContent.content as PMNode[])
+      : [];
 
   const cells: TableCell[] = [];
   const rowCnfStyle = (rowNode.attrs?.tableRowProperties as Record<string, unknown> | undefined)?.cnfStyle as
     | Record<string, unknown>
     | undefined;
-  rowNode.content.forEach((cellNode, cellIndex) => {
+  rowContent.forEach((cellNode, cellIndex) => {
     if (isTableCellNode(cellNode) && isTableSkipPlaceholderCell(cellNode)) {
       return;
     }
@@ -751,7 +764,7 @@ const parseTableRow = (args: ParseTableRowArgs): TableRow | null => {
       context,
       defaultCellPadding,
       tableProperties,
-      numCells: rowNode?.content?.length || 1,
+      numCells: rowContent.length || 1,
       numRows,
       rowCnfStyle,
     });
@@ -760,8 +773,13 @@ const parseTableRow = (args: ParseTableRowArgs): TableRow | null => {
     }
   });
 
-  if (cells.length === 0) return null;
-
+  // A tableRow whose cells are all gone must still be represented so downstream
+  // grid/rowspan accounting stays aligned with the PM grid. This happens after a
+  // cell merge: prosemirror-tables deletes the continuation row's cells, leaving
+  // an empty tableRow. Dropping it desyncs row counts, so the next real row is
+  // pushed past the rowspan occupancy and column widths collapse. Row attrs are
+  // still computed below (row height, grid skips) so placeholder-only rows keep
+  // their geometry.
   const rowProps = rowNode.attrs?.tableRowProperties;
   const rowHeight = normalizeRowHeight(rowProps as Record<string, unknown> | undefined);
   // Structural row-level tracked change (inserted/deleted whole row). Only
@@ -1039,7 +1057,10 @@ export function tableNodeToBlock(
     }
   });
 
-  if (rows.length === 0) return null;
+  // An entirely empty table (every row's cells are gone) carries no content and
+  // must be omitted. Empty continuation rows are kept only when other rows have
+  // cells, so rowspan accounting stays aligned.
+  if (rows.length === 0 || !rows.some((row) => row.cells.length > 0)) return null;
 
   const tableAttrs: Record<string, unknown> = {};
 

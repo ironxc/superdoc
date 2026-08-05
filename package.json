@@ -51,7 +51,7 @@
     "release:local:superdoc": "pnpm run build:superdoc && pnpm run type-check && node scripts/release-local-superdoc.mjs",
     "release:local:cli": "pnpm run build:superdoc && pnpm run type-check && node scripts/release-local-cli.mjs",
     "release:local:sdk": "pnpm run build:superdoc && pnpm run type-check && node scripts/release-local-sdk.mjs",
-    "prepare": "if [ -z \"$CI\" ]; then lefthook install; fi",
+    "prepare": "node scripts/install-lefthook.mjs",
     "watch": "pnpm --prefix packages/superdoc run watch:es",
     "check:all": "pnpm run format && pnpm run lint:fix && pnpm --prefix packages/super-editor run types:build && pnpm run test",
     "check:examples-demos": "bun scripts/validate-examples-demos.ts",

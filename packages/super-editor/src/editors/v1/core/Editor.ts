@@ -972,19 +972,7 @@ export class Editor extends EventEmitter<EditorEventMap> {
    * Ensure document metadata is generated and track telemetry if enabled
    */
   #trackDocumentOpen(): void {
-    // Always generate metadata (GUID, timestamp) regardless of telemetry
-    this.getDocumentIdentifier().then((documentId) => {
-      // Only track if telemetry enabled and not already tracked
-      if (!this.#telemetry || this.#documentOpenTracked) return;
-
-      try {
-        const documentCreatedAt = this.converter?.getDocumentCreatedTimestamp?.() ?? null;
-        this.#telemetry.trackDocumentOpen(documentId, documentCreatedAt);
-        this.#documentOpenTracked = true;
-      } catch {
-        // Fail silently - telemetry should never break the app
-      }
-    });
+    // Telemetry collection disabled - no longer sends to collect endpoint
   }
 
   /**
